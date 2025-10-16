@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="阿拉伯语字母">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-touch-fullscreen" content="yes">
+    <title>阿拉伯语字母认读卡片</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Safari兼容性样式 */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        /* Safari语音按钮样式修复 */
+        .play-btn {
+            -webkit-appearance: none;
+            appearance: none;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>阿拉伯语字母认读卡片</h1>
+        
+        <!-- 字母卡片区域 -->
+        <div class="alphabet-grid" id="alphabetGrid">
+            <!-- 字母卡片将通过JavaScript动态生成 -->
+            <div class="letter-card" data-letter="ا" data-pronunciation="alif" onclick="openLearningModal('ا')">
+                <div class="letter">ا</div>
+                <div class="pronunciation">alif</div>
+            </div>
+        </div>
+        
+        <!-- 测试模式入口 -->
+        <div class="test-section">
+            <button class="test-button" onclick="enterTestMode()">进入测试模式</button>
+        </div>
+    </div>
+
+    <!-- 测试模式弹窗 -->
+    <div class="test-modal" id="testModal">
+        <div class="test-content">
+            <h2>测试模式</h2>
+            <div class="test-info">
+                <p>题目 <span id="questionNumber">1</span>/10</p>
+                <p>得分: <span id="score">0</span></p>
+            </div>
+            
+            <!-- 题型1：显示字母，选择发音 -->
+            <div class="question-type-1" id="questionType1">
+                <div class="question-letter" id="questionLetter">ا</div>
+                <div class="options" id="options1">
+                    <!-- 选项将通过JavaScript生成 -->
+                </div>
+            </div>
+            
+            <!-- 题型2：显示发音，选择字母 -->
+            <div class="question-type-2" id="questionType2" style="display: none;">
+                <p style="font-size: 1.5rem; color: #667eea; margin-bottom: 20px;">请根据发音选择正确的字母</p>
+                <button class="play-sound-btn" onclick="playSound()">播放发音</button>
+                <div class="options" id="options2">
+                    <!-- 选项将通过JavaScript生成 -->
+                </div>
+            </div>
+            
+            <div class="feedback" id="feedback"></div>
+            
+            <div class="test-buttons">
+                <button onclick="closeTestMode()">退出测试</button>
+                <button onclick="nextQuestion()" id="nextBtn" style="display: none;">下一题</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 字母学习模态框 -->
+    <div class="learning-modal" id="learningModal">
+        <div class="learning-content">
+            <h2>字母学习</h2>
+            <button class="close-btn" onclick="closeLearningMode()">&times;</button>
+            
+            <!-- 发音符号形式 -->
+            <div class="pronunciation-forms">
+                <h3>发音符号形式</h3>
+                <div class="forms-grid">
+                    <div class="form-item" onclick="playPronunciation('fatha')">
+                        <div class="form-letter" id="fatha"></div>
+                        <div class="form-label">开口符</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('kasra')">
+                        <div class="form-letter" id="kasra"></div>
+                        <div class="form-label">齐齿符</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('damma')">
+                        <div class="form-letter" id="damma"></div>
+                        <div class="form-label">合口符</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('fathaLong')">
+                        <div class="form-letter" id="fathaLong"></div>
+                        <div class="form-label">开口符长音</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('kasraLong')">
+                        <div class="form-letter" id="kasraLong"></div>
+                        <div class="form-label">齐齿符长音</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('dammaLong')">
+                        <div class="form-letter" id="dammaLong"></div>
+                        <div class="form-label">合口符长音</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('fathaNasal')">
+                        <div class="form-letter" id="fathaNasal"></div>
+                        <div class="form-label">开口符鼻音</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('kasraNasal')">
+                        <div class="form-letter" id="kasraNasal"></div>
+                        <div class="form-label">齐齿符鼻音</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('dammaNasal')">
+                        <div class="form-letter" id="dammaNasal"></div>
+                        <div class="form-label">合口符鼻音</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('softAy')">
+                        <div class="form-letter" id="softAy"></div>
+                        <div class="form-label">软音ay</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('softAw')">
+                        <div class="form-letter" id="softAw"></div>
+                        <div class="form-label">软音aw</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 字母形式 -->
+            <div class="letter-forms">
+                <h3>字母形式</h3>
+                <div class="forms-grid">
+                    <div class="form-item" onclick="playPronunciation('isolated')">
+                        <div class="form-letter" id="isolatedForm"></div>
+                        <div class="form-label">独立形式</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('initial')">
+                        <div class="form-letter" id="initialForm"></div>
+                        <div class="form-label">开头形式</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('middle')">
+                        <div class="form-letter" id="middleForm"></div>
+                        <div class="form-label">中间形式</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                    <div class="form-item" onclick="playPronunciation('final')">
+                        <div class="form-letter" id="finalForm"></div>
+                        <div class="form-label">结尾形式</div>
+                        <button class="play-btn">🔊</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 手写白板区域 -->
+            <div class="writing-area">
+                <h3>手写练习</h3>
+                <div class="canvas-container">
+                    <canvas id="writingCanvas" width="400" height="200"></canvas>
+                    <div class="canvas-lines"></div>
+                </div>
+                <div class="canvas-controls">
+                    <button onclick="clearCanvas()" class="clear-btn">清屏</button>
+                    <button onclick="toggleEraser()" class="eraser-btn">橡皮擦</button>
+                    <button onclick="togglePencil()" class="pencil-btn active">铅笔</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="safari-polyfill.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
