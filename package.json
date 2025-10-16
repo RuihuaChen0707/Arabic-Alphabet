@@ -1,0 +1,27 @@
+{
+  "name": "arabic-alphabet",
+  "version": "1.0.0",
+  "description": "Interactive Arabic alphabet learning application with audio pronunciation",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8080 || node -e \"require('http').createServer((req, res) => require('fs').readFile('index.html', (err, data) => { res.writeHead(200, {'Content-Type': 'text/html'}); res.end(data); })).listen(8080)\"",
+    "build": "echo 'Static build complete'",
+    "dev": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "arabic",
+    "alphabet",
+    "learning",
+    "education",
+    "interactive",
+    "web-speech",
+    "rtl"
+  ],
+  "author": "Rui Chen",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
