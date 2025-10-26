@@ -1376,7 +1376,7 @@ function updateFlashcardsStats() {
     document.getElementById('progressFill').style.width = progress + '%';
 }
 
-// 生成单词配图（改进版）
+// 生成单词配图（正确使用Gemini 2.5 Flash Image）
 async function generateWordImage(word) {
     const wordImage = document.getElementById('wordImage');
     const imageLoading = document.getElementById('imageLoading');
@@ -1386,29 +1386,326 @@ async function generateWordImage(word) {
     imageLoading.textContent = 'AI正在生成图片...';
 
     try {
-        // 步骤1：生成AI图片提示词
-        imageLoading.textContent = '分析单词含义...';
-        const imagePrompt = await generateImagePrompt(word);
-        console.log(`✅ AI提示词生成成功 (${word.arabic}):`, imagePrompt);
+        // 步骤1：使用Gemini 2.5 Flash Image直接生成图片
+        imageLoading.textContent = 'AI正在创作...';
+        const aiImageUrl = await generateImageWithGemini(word);
 
-        // 步骤2：构建多种图片源
-        imageLoading.textContent = '获取匹配图片...';
+        if (aiImageUrl) {
+            // 步骤2：直接使用AI生成的图片
+            imageLoading.textContent = '完成！';
 
-        // 图片源选项 - 根据单词类型选择不同的策略
-        const imageSources = buildImageSources(word, imagePrompt);
-        console.log('📝 图片源选项:', imageSources);
+            // 预加载AI生成的图片
+            const img = new Image();
+            img.onload = () => {
+                imageLoading.style.display = 'none';
+                wordImage.style.display = 'block';
+                wordImage.src = aiImageUrl;
+                console.log(`🎨 AI图片加载成功: ${word.arabic}`);
+            };
 
-        // 步骤3：尝试加载图片
-        await tryLoadImages(imageSources, wordImage, imageLoading);
+            img.onerror = () => {
+                console.warn('⚠️ AI图片加载失败，使用备选方案');
+                fallbackToOtherSources(word, wordImage, imageLoading);
+            };
+
+            img.src = aiImageUrl;
+
+            // 设置超时
+            setTimeout(() => {
+                if (imageLoading.style.display !== 'none') {
+                    fallbackToOtherSources(word, wordImage, imageLoading);
+                }
+            }, 5000);
+
+        } else {
+            // AI生成失败，使用备选方案
+            console.log('🔄 AI生成失败，使用备选图片源');
+            fallbackToOtherSources(word, wordImage, imageLoading);
+        }
 
     } catch (error) {
-        console.error('❌ 图片生成失败:', error);
-        imageLoading.textContent = '使用备用图片...';
+        console.error('❌ 图片生成过程出错:', error);
+        imageLoading.textContent = '使用离线图片...';
 
-        // 最终降级方案：使用主题化的占位图片
-        const themedUrl = generateThemedPlaceholderUrl(word);
-        loadDirectImage(themedUrl, wordImage, imageLoading);
+        // 最终降级方案：使用离线Base64图片
+        loadOfflineImage(word, wordImage, imageLoading);
     }
+}
+
+// 降级到其他图片源
+function fallbackToOtherSources(word, wordImage, imageLoading) {
+    imageLoading.textContent = '获取匹配图片...';
+
+    // 构建传统图片源
+    const imageSources = buildImageSources(word, 'simple illustration');
+    console.log('📝 使用备选图片源:', imageSources);
+
+    tryLoadImages(imageSources, wordImage, imageLoading).catch(error => {
+        console.error('❌ 所有在线图片源都失败:', error);
+        imageLoading.textContent = '使用离线图片...';
+        loadOfflineImage(word, wordImage, imageLoading);
+    });
+}
+
+// 加载离线Base64图片
+function loadOfflineImage(word, wordImage, imageLoading) {
+    try {
+        // 使用简单的SVG图标作为离线图片
+        const svgImage = generateSVGIcon(word);
+
+        imageLoading.style.display = 'none';
+        wordImage.style.display = 'block';
+        wordImage.src = svgImage;
+
+        console.log(`✅ 使用离线SVG图片 (${word.arabic})`);
+    } catch (error) {
+        console.error('❌ 离线图片也失败:', error);
+
+        // 最后的最后：使用纯CSS样式显示单词
+        imageLoading.style.display = 'none';
+        wordImage.style.display = 'none';
+
+        // 在图片容器中显示阿拉伯语单词
+        const container = wordImage.parentElement;
+        container.innerHTML += `
+            <div style="
+                font-size: 3rem;
+                color: #667eea;
+                text-align: center;
+                padding: 40px;
+                direction: rtl;
+                font-weight: bold;
+            ">
+                ${word.arabic}
+            </div>
+        `;
+    }
+}
+
+// 生成简单的SVG图标
+function generateSVGIcon(word) {
+    const iconMap = {
+        '书': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="20" y="15" width="60" height="70" fill="#8B4513" stroke="#654321" stroke-width="2"/>
+            <rect x="25" y="20" width="50" height="60" fill="#FFF8DC"/>
+            <line x1="30" y1="30" x2="70" y2="30" stroke="#333" stroke-width="1"/>
+            <line x1="30" y1="40" x2="70" y2="40" stroke="#333" stroke-width="1"/>
+            <line x1="30" y1="50" x2="60" y2="50" stroke="#333" stroke-width="1"/>
+        </svg>`,
+
+        '房子': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="50,15 85,40 85,85 15,85 15,40" fill="#DEB887" stroke="#8B7355" stroke-width="2"/>
+            <rect x="35" y="50" width="30" height="35" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+            <rect x="60" y="60" width="15" height="15" fill="#87CEEB" stroke="#4682B4" stroke-width="1"/>
+            <polygon points="50,15 85,40 15,40" fill="#CD5C5C" stroke="#8B3626" stroke-width="2"/>
+        </svg>`,
+
+        '水': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M30 50 Q40 30, 50 50 T70 50 T90 50" fill="none" stroke="#4682B4" stroke-width="3"/>
+            <path d="M10 70 Q25 60, 40 70 T70 70 T90 70" fill="none" stroke="#5F9EA0" stroke-width="3"/>
+            <circle cx="35" cy="65" r="3" fill="#87CEEB"/>
+            <circle cx="65" cy="75" r="2" fill="#87CEEB"/>
+        </svg>`,
+
+        '父亲': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="30" r="15" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="35" y="45" width="30" height="40" fill="#4682B4" stroke="#191970" stroke-width="2" rx="5"/>
+            <rect x="40" y="85" width="8" height="10" fill="#333" stroke="#000" stroke-width="1"/>
+            <rect x="52" y="85" width="8" height="10" fill="#333" stroke="#000" stroke-width="1"/>
+            <g fill="#F4A460">
+                <rect x="35" y="25" width="6" height="3" rx="1"/>
+                <rect x="59" y="25" width="6" height="3" rx="1"/>
+            </g>
+        </svg>`,
+
+        '母亲': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="30" r="15" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="35" y="45" width="30" height="40" fill="#FF69B4" stroke="#FF1493" stroke-width="2" rx="5"/>
+            <rect x="40" y="85" width="8" height="10" fill="#333" stroke="#000" stroke-width="1"/>
+            <rect x="52" y="85" width="8" height="10" fill="#333" stroke="#000" stroke-width="1"/>
+            <g fill="#F4A460">
+                <ellipse cx="45" cy="28" rx="4" ry="2"/>
+                <ellipse cx="55" cy="28" rx="4" ry="2"/>
+            </g>
+        </svg>`,
+
+        '兄弟': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="35" r="12" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <circle cx="70" cy="35" r="12" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="18" y="47" width="24" height="30" fill="#4169E1" stroke="#191970" stroke-width="2" rx="3"/>
+            <rect x="58" y="47" width="24" height="30" fill="#32CD32" stroke="#228B22" stroke-width="2" rx="3"/>
+            <rect x="22" y="77" width="6" height="8" fill="#333"/>
+            <rect x="32" y="77" width="6" height="8" fill="#333"/>
+            <rect x="62" y="77" width="6" height="8" fill="#333"/>
+            <rect x="72" y="77" width="6" height="8" fill="#333"/>
+        </svg>`,
+
+        '姐妹': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="35" r="12" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <circle cx="70" cy="35" r="12" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="18" y="47" width="24" height="30" fill="#FF69B4" stroke="#FF1493" stroke-width="2" rx="3"/>
+            <rect x="58" y="47" width="24" height="30" fill="#FFB6C1" stroke="#FF69B4" stroke-width="2" rx="3"/>
+            <rect x="22" y="77" width="6" height="8" fill="#333"/>
+            <rect x="32" y="77" width="6" height="8" fill="#333"/>
+            <rect x="62" y="77" width="6" height="8" fill="#333"/>
+            <rect x="72" y="77" width="6" height="8" fill="#333"/>
+        </svg>`,
+
+        '男孩': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="25" r="12" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="38" y="37" width="24" height="35" fill="#4169E1" stroke="#191970" stroke-width="2" rx="3"/>
+            <rect x="42" y="72" width="6" height="8" fill="#333"/>
+            <rect x="52" y="72" width="6" height="8" fill="#333"/>
+            <g fill="#F4A460">
+                <ellipse cx="45" cy="23" rx="3" ry="1.5"/>
+                <ellipse cx="55" cy="23" rx="3" ry="1.5"/>
+            </g>
+        </svg>`,
+
+        '女孩': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="25" r="12" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="38" y="37" width="24" height="35" fill="#FF69B4" stroke="#FF1493" stroke-width="2" rx="3"/>
+            <rect x="42" y="72" width="6" height="8" fill="#333"/>
+            <rect x="52" y="72" width="6" height="8" fill="#333"/>
+            <g fill="#F4A460">
+                <ellipse cx="45" cy="23" rx="3" ry="1.5"/>
+                <ellipse cx="55" cy="23" rx="3" ry="1.5"/>
+            </g>
+            <ellipse cx="50" cy="15" rx="15" ry="8" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+        </svg>`,
+
+        '男人': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="30" r="15" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="35" y="45" width="30" height="45" fill="#333" stroke="#000" stroke-width="2" rx="3"/>
+            <rect x="40" y="90" width="8" height="8" fill="#333"/>
+            <rect x="52" y="90" width="8" height="8" fill="#333"/>
+            <g fill="#F4A460">
+                <rect x="35" y="25" width="6" height="3" rx="1"/>
+                <rect x="59" y="25" width="6" height="3" rx="1"/>
+            </g>
+        </svg>`,
+
+        '女人': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="30" r="15" fill="#F4A460" stroke="#8B4513" stroke-width="2"/>
+            <rect x="35" y="45" width="30" height="45" fill="#FF69B4" stroke="#FF1493" stroke-width="2" rx="3"/>
+            <rect x="40" y="90" width="8" height="8" fill="#333"/>
+            <rect x="52" y="90" width="8" height="8" fill="#333"/>
+            <g fill="#F4A460">
+                <ellipse cx="45" cy="28" rx="4" ry="2"/>
+                <ellipse cx="55" cy="28" rx="4" ry="2"/>
+            </g>
+            <ellipse cx="50" cy="18" rx="18" ry="10" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+        </svg>`,
+
+        '太阳': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="15" fill="#FFD700" stroke="#FFA500" stroke-width="2"/>
+            <g stroke="#FFD700" stroke-width="3">
+                <line x1="50" y1="10" x2="50" y2="25"/>
+                <line x1="50" y1="75" x2="50" y2="90"/>
+                <line x1="10" y1="50" x2="25" y2="50"/>
+                <line x1="75" y1="50" x2="90" y2="50"/>
+                <line x1="22" y1="22" x2="32" y2="32"/>
+                <line x1="68" y1="68" x2="78" y2="78"/>
+                <line x1="22" y1="78" x2="32" y2="68"/>
+                <line x1="68" y1="32" x2="78" y2="22"/>
+            </g>
+        </svg>`,
+
+        '月亮': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M35 25 Q60 40, 35 75 Q50 65, 60 50 T35 25" fill="#F0E68C" stroke="#DAA520" stroke-width="2"/>
+            <circle cx="20" cy="30" r="2" fill="#FFF8DC"/>
+            <circle cx="25" cy="45" r="1.5" fill="#FFF8DC"/>
+            <circle cx="30" cy="60" r="1" fill="#FFF8DC"/>
+        </svg>`,
+
+        '火': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M50 80 Q30 70, 30 50 T50 20 T70 50 Q70 70, 50 80" fill="#FF4500" stroke="#DC143C" stroke-width="2"/>
+            <path d="M50 70 Q35 65, 35 50 T50 30 T65 50 Q65 65, 50 70" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+            <path d="M50 60 Q40 58, 40 50 T50 40 T60 50 Q60 58, 50 60" fill="#FFF8DC" stroke="#F0E68C" stroke-width="1"/>
+        </svg>`,
+
+        '土地': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="10" y="40" width="80" height="50" fill="#8B4513" stroke="#654321" stroke-width="2"/>
+            <rect x="10" y="40" width="80" height="15" fill="#228B22" stroke="#006400" stroke-width="2"/>
+            <g fill="#FFD700">
+                <circle cx="25" cy="25" r="8"/>
+                <circle cx="50" cy="20" r="6"/>
+                <circle cx="75" cy="23" r="7"/>
+            </g>
+        </svg>`,
+
+        '天空': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="10" y="10" width="80" height="80" fill="#87CEEB" stroke="#4682B4" stroke-width="2"/>
+            <g fill="white" opacity="0.8">
+                <ellipse cx="30" cy="35" rx="12" ry="6"/>
+                <ellipse cx="60" cy="25" rx="15" ry="8"/>
+                <ellipse cx="75" cy="45" rx="10" ry="5"/>
+            </g>
+            <circle cx="50" cy="15" r="8" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+        </svg>`,
+
+        '树': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="45" y="60" width="10" height="30" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+            <circle cx="50" cy="40" r="25" fill="#228B22" stroke="#006400" stroke-width="2"/>
+            <circle cx="40" cy="35" r="8" fill="#32CD32" stroke="#228B22" stroke-width="1"/>
+            <circle cx="60" cy="45" r="6" fill="#32CD32" stroke="#228B22" stroke-width="1"/>
+        </svg>`,
+
+        '花': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="40" r="8" fill="#FFD700" stroke="#FFA500" stroke-width="1"/>
+            <g fill="#FF69B4" stroke="#FF1493" stroke-width="1">
+                <circle cx="50" cy="30" r="6"/>
+                <circle cx="60" cy="35" r="6"/>
+                <circle cx="60" cy="45" r="6"/>
+                <circle cx="50" cy="50" r="6"/>
+                <circle cx="40" cy="45" r="6"/>
+                <circle cx="40" cy="35" r="6"/>
+            </g>
+            <rect x="48" y="50" width="4" height="30" fill="#228B22" stroke="#006400" stroke-width="1"/>
+        </svg>`,
+
+        '汽车': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="15" y="40" width="70" height="25" fill="#4169E1" stroke="#191970" stroke-width="2" rx="5"/>
+            <rect x="30" y="25" width="40" height="20" fill="#4169E1" stroke="#191970" stroke-width="2" rx="8"/>
+            <rect x="55" y="30" width="10" height="8" fill="#87CEEB" stroke="#4682B4" stroke-width="1"/>
+            <circle cx="25" cy="70" r="8" fill="#333" stroke="#000" stroke-width="1"/>
+            <circle cx="75" cy="70" r="8" fill="#333" stroke="#000" stroke-width="1"/>
+        </svg>`,
+
+        '猫': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="50" cy="60" rx="25" ry="20" fill="#FF8C00" stroke="#FF6347" stroke-width="2"/>
+            <circle cx="50" cy="35" r="18" fill="#FF8C00" stroke="#FF6347" stroke-width="2"/>
+            <polygon points="35,20 30,35 40,30" fill="#FF8C00" stroke="#FF6347" stroke-width="2"/>
+            <polygon points="65,20 70,35 60,30" fill="#FF8C00" stroke="#FF6347" stroke-width="2"/>
+            <g fill="#000">
+                <circle cx="43" cy="33" r="2"/>
+                <circle cx="57" cy="33" r="2"/>
+                <polygon points="47,40 53,40 50,43" fill="#FF69B4"/>
+            </g>
+            <g stroke="#000" stroke-width="1" fill="none">
+                <line x1="50" y1="45" x2="50" y2="48"/>
+                <line x1="45" y1="46" x2="48" y2="48"/>
+                <line x1="55" y1="46" x2="52" y2="48"/>
+            </g>
+        </svg>`
+    };
+
+    // 获取对应的SVG或默认SVG
+    let svg = iconMap[word.meaning];
+
+    if (!svg) {
+        // 默认SVG：简单的彩色方块带阿拉伯语文字
+        svg = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect x="10" y="10" width="80" height="80" fill="#667eea" stroke="#4a5fc1" stroke-width="3" rx="10"/>
+            <text x="50" y="55" font-family="Arial" font-size="28" fill="white" text-anchor="middle" direction="rtl">
+                ${word.arabic}
+            </text>
+        </svg>`;
+    }
+
+    // 转换为Base64 Data URL
+    const base64 = btoa(unescape(encodeURIComponent(svg)));
+    return `data:image/svg+xml;base64,${base64}`;
 }
 
 // 构建多种图片源
@@ -1524,24 +1821,31 @@ async function tryLoadImages(sources, wordImage, imageLoading) {
     throw new Error('所有图片源都失败了');
 }
 
-// 直接加载图片
+// 直接加载图片（改进版）
 function loadDirectImage(url, wordImage, imageLoading) {
     return new Promise((resolve, reject) => {
         const img = new Image();
+
+        // 跨域设置
+        img.crossOrigin = 'anonymous';
+
+        // 缩短超时时间到2秒
         const timeout = setTimeout(() => {
             reject(new Error('图片加载超时'));
-        }, 3000);
+        }, 2000);
 
         img.onload = () => {
             clearTimeout(timeout);
             imageLoading.style.display = 'none';
             wordImage.style.display = 'block';
             wordImage.src = url;
+            console.log('✅ 图片加载成功:', url);
             resolve(true);
         };
 
         img.onerror = () => {
             clearTimeout(timeout);
+            console.warn('❌ 图片加载错误:', url);
             reject(new Error('图片加载失败'));
         };
 
@@ -1549,41 +1853,13 @@ function loadDirectImage(url, wordImage, imageLoading) {
     });
 }
 
-// 生成图片提示词（改进版）
-async function generateImagePrompt(word) {
-    // 首先尝试使用预定义的高质量提示词
-    const predefinedPrompts = {
-        '书': 'a simple open book with clear readable pages, educational illustration',
-        '房子': 'a simple house with door and windows, clean architectural style',
-        '水': 'a glass of clear water or water droplets, clean and fresh',
-        '父亲': 'a father figure with child, family portrait illustration',
-        '母亲': 'a mother figure with child, caring family scene',
-        '兄弟': 'two brothers playing together, happy siblings illustration',
-        '姐妹': 'two sisters studying together, happy family scene',
-        '男孩': 'a young boy reading or playing, child character illustration',
-        '女孩': 'a young girl studying or playing, child character illustration',
-        '男人': 'a professional man figure, simple character portrait',
-        '女人': 'a professional woman figure, simple character portrait',
-        '太阳': 'a bright stylized sun with rays, weather symbol illustration',
-        '月亮': 'a crescent moon with stars, night sky illustration',
-        '火': 'a controlled flame or campfire, warm orange colors',
-        '土地': 'a patch of green earth or farmland, nature illustration',
-        '天空': 'blue sky with white clouds, weather illustration',
-        '树': 'a simple green tree with trunk, nature illustration',
-        '花': 'a colorful blooming flower, garden illustration',
-        '汽车': 'a simple car or vehicle, transportation illustration',
-        '猫': 'a cute sitting cat, pet animal illustration'
-    };
-
-    // 检查是否有预定义提示词
-    if (predefinedPrompts[word.meaning]) {
-        console.log(`📋 使用预定义提示词 (${word.arabic}):`, predefinedPrompts[word.meaning]);
-        return predefinedPrompts[word.meaning];
-    }
-
-    // 如果没有预定义提示词，尝试API生成
+// 使用Gemini 2.5 Flash Image直接生成图片
+async function generateImageWithGemini(word) {
     try {
-        console.log(`🤖 开始API提示词生成 (${word.arabic} - ${word.meaning})`);
+        console.log(`🎨 开始AI图片生成 (${word.arabic} - ${word.meaning})`);
+
+        const imagePrompt = createImagePromptForGemini(word);
+        console.log('📝 图片生成提示词:', imagePrompt);
 
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
@@ -1594,29 +1870,19 @@ async function generateImagePrompt(word) {
                 'X-Title': OPENROUTER_SITE_NAME,
             },
             body: JSON.stringify({
-                model: 'google/gemini-2.5-flash-image',
+                model: 'google/gemini-2.5-flash-image-preview',
                 messages: [
                     {
                         role: 'user',
-                        content: `I need a simple English image description for the Arabic word "${word.arabic}" which means "${word.meaning}".
-
-Requirements:
-1. Create a simple, clear description suitable for educational illustrations
-2. Focus on the core visual meaning of the word
-3. Use 3-6 descriptive words maximum
-4. Make it suitable for image search APIs like Unsplash
-5. Return ONLY the English description, no explanations
-
-Examples:
-- For "book" (كتاب): "open book with pages"
-- For "house" (بيت): "simple house with windows"
-- For "sun" (شمس): "bright sun with rays"
-
-For "${word.meaning}" (${word.arabic}), provide:`
+                        content: imagePrompt
                     }
                 ],
-                max_tokens: 50,
-                temperature: 0.3  // 降低温度以获得更一致的结果
+                modalities: ['image', 'text'],
+                image_config: {
+                    aspect_ratio: '1:1'
+                },
+                max_tokens: 100,
+                temperature: 0.7
             })
         });
 
@@ -1625,19 +1891,56 @@ For "${word.meaning}" (${word.arabic}), provide:`
         }
 
         const data = await response.json();
+        console.log('📦 Gemini API响应:', data);
 
         if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-            const prompt = data.choices[0].message.content.trim();
-            console.log(`✅ API生成的提示词 (${word.arabic}):`, prompt);
-            return prompt;
+            const message = data.choices[0].message;
+
+            // 检查是否有生成的图片
+            if (message.images && message.images.length > 0) {
+                const imageUrl = message.images[0].image_url.url;
+                console.log(`✅ AI图片生成成功 (${word.arabic}):`, imageUrl.substring(0, 50) + '...');
+                return imageUrl; // 返回Base64 Data URL
+            } else {
+                console.warn('⚠️ API响应中没有图片:', message);
+                return null;
+            }
         } else {
-            console.error('Invalid API response:', data);
-            return createFallbackPrompt(word);
+            console.error('❌ 无效的API响应结构:', data);
+            return null;
         }
     } catch (error) {
-        console.error('❌ API提示词生成失败:', error);
-        return createFallbackPrompt(word);
+        console.error('❌ AI图片生成失败:', error);
+        return null;
     }
+}
+
+// 为Gemini创建图片生成提示词
+function createImagePromptForGemini(word) {
+    const prompts = {
+        '书': 'Generate a simple, clear illustration of an open book with readable pages, suitable for Arabic language learning. Style: educational, clean, colorful.',
+        '房子': 'Create a simple, friendly illustration of a house with door and windows, suitable for Arabic language learning. Style: educational, warm, colorful.',
+        '水': 'Generate a clean illustration of a glass of water or water droplets, suitable for Arabic language learning. Style: educational, clear, refreshing.',
+        '父亲': 'Create a warm illustration of a father figure, suitable for Arabic language learning. Style: educational, friendly, family-oriented.',
+        '母亲': 'Generate a caring illustration of a mother figure, suitable for Arabic language learning. Style: educational, warm, family-oriented.',
+        '兄弟': 'Create a happy illustration of two brothers together, suitable for Arabic language learning. Style: educational, joyful, colorful.',
+        '姐妹': 'Generate a sweet illustration of two sisters together, suitable for Arabic language learning. Style: educational, friendly, colorful.',
+        '男孩': 'Create a cheerful illustration of a young boy, suitable for Arabic language learning. Style: educational, happy, child-friendly.',
+        '女孩': 'Generate a lovely illustration of a young girl, suitable for Arabic language learning. Style: educational, cute, child-friendly.',
+        '男人': 'Create a professional illustration of a man, suitable for Arabic language learning. Style: educational, respectable, clear.',
+        '女人': 'Generate an elegant illustration of a woman, suitable for Arabic language learning. Style: educational, graceful, clear.',
+        '太阳': 'Create a bright, cheerful illustration of a sun with rays, suitable for Arabic language learning. Style: educational, sunny, warm colors.',
+        '月亮': 'Generate a peaceful illustration of a crescent moon with stars, suitable for Arabic language learning. Style: educational, night sky, calm.',
+        '火': 'Create a controlled illustration of fire or flame, suitable for Arabic language learning. Style: educational, warm, orange colors.',
+        '土地': 'Generate a natural illustration of earth or ground, suitable for Arabic language learning. Style: educational, brown, green tones.',
+        '天空': 'Create a clear illustration of blue sky with clouds, suitable for Arabic language learning. Style: educational, peaceful, blue.',
+        '树': 'Generate a simple illustration of a tree with trunk and leaves, suitable for Arabic language learning. Style: educational, green, nature.',
+        '花': 'Create a beautiful illustration of a blooming flower, suitable for Arabic language learning. Style: educational, colorful, garden.',
+        '汽车': 'Generate a simple illustration of a car or vehicle, suitable for Arabic language learning. Style: educational, blue, transportation.',
+        '猫': 'Create a cute illustration of a sitting cat, suitable for Arabic language learning. Style: educational, orange, pet-friendly.'
+    };
+
+    return prompts[word.meaning] || `Generate a simple, clear illustration of "${word.meaning}" (${word.arabic}), suitable for Arabic language learning. Style: educational, colorful, easy to understand.`;
 }
 
 // 创建备用提示词
