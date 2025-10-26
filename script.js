@@ -72,9 +72,54 @@ let wordStats = {
 };
 let currentWords = [...basicWords];
 
-// 图片缓存系统
-const imageCache = new Map(); // 缓存已生成的图片
+// 持久化图片缓存系统
+const imageCache = new Map(); // 内存缓存用于快速访问
 let currentImageKey = null; // 当前显示的图片缓存键
+
+// 初始化时从localStorage恢复缓存
+function initializeImageCache() {
+    try {
+        const cachedData = localStorage.getItem('arabicImageCache');
+        if (cachedData) {
+            const parsedCache = JSON.parse(cachedData);
+            parsedCache.forEach((value, key) => {
+                imageCache.set(key, value);
+            });
+            console.log('📦 从localStorage恢复图片缓存:', imageCache.size, '个图片');
+        }
+    } catch (error) {
+        console.warn('⚠️ 恢复缓存失败:', error);
+    }
+}
+
+// 保存缓存到localStorage
+function saveImageCacheToStorage() {
+    try {
+        const cacheArray = Array.from(imageCache.entries());
+        localStorage.setItem('arabicImageCache', JSON.stringify(cacheArray));
+        console.log('💾 图片缓存已保存到localStorage');
+    } catch (error) {
+        console.warn('⚠️ 保存缓存失败:', error);
+        // 如果localStorage满了，清理一些旧缓存
+        if (error.name === 'QuotaExceededError') {
+            clearOldestCacheEntries();
+        }
+    }
+}
+
+// 清理最旧的缓存条目
+function clearOldestCacheEntries() {
+    const entries = Array.from(imageCache.entries());
+    const toKeep = Math.floor(entries.length * 0.7); // 保留70%的缓存
+    const toRemove = entries.slice(toKeep);
+
+    toRemove.forEach(([key]) => {
+        imageCache.delete(key);
+    });
+
+    console.log(`🗑️ 清理了 ${toRemove.length} 个旧缓存条目`);
+    saveImageCacheToStorage();
+}
 
 // 缓存管理功能
 function clearImageCache() {
@@ -102,6 +147,9 @@ const OPENROUTER_SITE_NAME = 'Arabic Alphabet Learning';
 
 // 初始化页面函数
 function initializeApp() {
+    // 初始化图片缓存系统
+    initializeImageCache();
+
     // 默认显示主页
     showHomePage();
     updateLearningStats();
@@ -1228,15 +1276,26 @@ function loadCurrentWord() {
     flashcard.classList.remove('flipped');
     isFlipped = false;
 
-    // 隐藏图片，开始生成
+    // 智能图片加载：检查是否已有缓存
     const wordImage = document.getElementById('wordImage');
     const imageLoading = document.getElementById('imageLoading');
-    wordImage.style.display = 'none';
-    imageLoading.style.display = 'block';
-    imageLoading.textContent = '生成图片中...';
+    const cacheKey = `${word.arabic}-${word.meaning}`;
 
-    // 生成图片
-    generateWordImage(word);
+    // 如果有缓存，直接显示，无需重新生成
+    if (imageCache.has(cacheKey)) {
+        console.log(`📋 使用已有缓存图片 (${word.arabic})`);
+        imageLoading.style.display = 'none';
+        wordImage.style.display = 'block';
+        wordImage.src = imageCache.get(cacheKey);
+        document.getElementById('regenerateBtn').style.display = 'flex';
+    } else {
+        // 没有缓存才需要生成
+        console.log(`🎨 首次生成图片 (${word.arabic})`);
+        wordImage.style.display = 'none';
+        imageLoading.style.display = 'block';
+        imageLoading.textContent = 'AI正在生成图片...';
+        generateWordImage(word);
+    }
 }
 
 // 翻转卡片
@@ -1395,7 +1454,7 @@ function updateFlashcardsStats() {
     document.getElementById('progressFill').style.width = progress + '%';
 }
 
-// 生成单词配图（带缓存优化）
+// 生成单词配图（仅在无缓存时调用）
 async function generateWordImage(word, forceRegenerate = false) {
     const wordImage = document.getElementById('wordImage');
     const imageLoading = document.getElementById('imageLoading');
@@ -1404,17 +1463,6 @@ async function generateWordImage(word, forceRegenerate = false) {
     // 创建缓存键
     const cacheKey = `${word.arabic}-${word.meaning}`;
     currentImageKey = cacheKey;
-
-    // 检查缓存（除非强制重新生成）
-    if (!forceRegenerate && imageCache.has(cacheKey)) {
-        const cachedImageUrl = imageCache.get(cacheKey);
-        console.log(`📋 使用缓存图片 (${word.arabic})`);
-        imageLoading.style.display = 'none';
-        wordImage.style.display = 'block';
-        wordImage.src = cachedImageUrl;
-        regenerateBtn.style.display = 'flex';
-        return;
-    }
 
     // 显示加载状态
     imageLoading.style.display = 'block';
@@ -1429,7 +1477,8 @@ async function generateWordImage(word, forceRegenerate = false) {
         if (aiImageUrl) {
             // 步骤2：缓存并显示AI生成的图片
             imageCache.set(cacheKey, aiImageUrl);
-            console.log(`✅ 图片已缓存 (${word.arabic})`);
+            saveImageCacheToStorage(); // 立即保存到localStorage
+            console.log(`✅ 图片已缓存并保存 (${word.arabic})`);
 
             imageLoading.textContent = '完成！';
 
@@ -1493,7 +1542,8 @@ function fallbackToOtherSources(word, wordImage, imageLoading, cacheKey = null) 
         // 如果成功加载了备选图片，也缓存起来
         if (cacheKey && wordImage.src) {
             imageCache.set(cacheKey, wordImage.src);
-            console.log(`✅ 备选图片已缓存 (${word.arabic})`);
+            saveImageCacheToStorage(); // 保存到localStorage
+            console.log(`✅ 备选图片已缓存并保存 (${word.arabic})`);
         }
         document.getElementById('regenerateBtn').style.display = 'flex';
     }).catch(error => {
@@ -1516,7 +1566,8 @@ function loadOfflineImage(word, wordImage, imageLoading, cacheKey = null) {
         // 缓存SVG图片
         if (cacheKey) {
             imageCache.set(cacheKey, svgImage);
-            console.log(`✅ 离线SVG图片已缓存 (${word.arabic})`);
+            saveImageCacheToStorage(); // 保存到localStorage
+            console.log(`✅ 离线SVG图片已缓存并保存 (${word.arabic})`);
         }
 
         console.log(`✅ 使用离线SVG图片 (${word.arabic})`);
@@ -1981,29 +2032,29 @@ async function generateImageWithGemini(word) {
 // 为Gemini创建图片生成提示词
 function createImagePromptForGemini(word) {
     const prompts = {
-        '书': 'Generate a simple, clear illustration of an open book with readable pages, suitable for Arabic language learning. Style: educational, clean, colorful.',
-        '房子': 'Create a simple, friendly illustration of a house with door and windows, suitable for Arabic language learning. Style: educational, warm, colorful.',
-        '水': 'Generate a clean illustration of a glass of water or water droplets, suitable for Arabic language learning. Style: educational, clear, refreshing.',
-        '父亲': 'Create a warm illustration of a father figure, suitable for Arabic language learning. Style: educational, friendly, family-oriented.',
-        '母亲': 'Generate a caring illustration of a mother figure, suitable for Arabic language learning. Style: educational, warm, family-oriented.',
-        '兄弟': 'Create a happy illustration of two brothers together, suitable for Arabic language learning. Style: educational, joyful, colorful.',
-        '姐妹': 'Generate a sweet illustration of two sisters together, suitable for Arabic language learning. Style: educational, friendly, colorful.',
-        '男孩': 'Create a cheerful illustration of a young boy, suitable for Arabic language learning. Style: educational, happy, child-friendly.',
-        '女孩': 'Generate a lovely illustration of a young girl, suitable for Arabic language learning. Style: educational, cute, child-friendly.',
-        '男人': 'Create a professional illustration of a man, suitable for Arabic language learning. Style: educational, respectable, clear.',
-        '女人': 'Generate an elegant illustration of a woman, suitable for Arabic language learning. Style: educational, graceful, clear.',
-        '太阳': 'Create a bright, cheerful illustration of a sun with rays, suitable for Arabic language learning. Style: educational, sunny, warm colors.',
-        '月亮': 'Generate a peaceful illustration of a crescent moon with stars, suitable for Arabic language learning. Style: educational, night sky, calm.',
-        '火': 'Create a controlled illustration of fire or flame, suitable for Arabic language learning. Style: educational, warm, orange colors.',
-        '土地': 'Generate a natural illustration of earth or ground, suitable for Arabic language learning. Style: educational, brown, green tones.',
-        '天空': 'Create a clear illustration of blue sky with clouds, suitable for Arabic language learning. Style: educational, peaceful, blue.',
-        '树': 'Generate a simple illustration of a tree with trunk and leaves, suitable for Arabic language learning. Style: educational, green, nature.',
-        '花': 'Create a beautiful illustration of a blooming flower, suitable for Arabic language learning. Style: educational, colorful, garden.',
-        '汽车': 'Generate a simple illustration of a car or vehicle, suitable for Arabic language learning. Style: educational, blue, transportation.',
-        '猫': 'Create a cute illustration of a sitting cat, suitable for Arabic language learning. Style: educational, orange, pet-friendly.'
+        '书': 'Create a beautiful, detailed storybook illustration of an open book with pages showing clear text, warm lighting, rich colors. Picture book style for children education, high quality, vibrant.',
+        '房子': 'Generate a charming, detailed illustration of a cozy family home with windows, door, garden, warm lighting. Children\'s book illustration style, rich colors, welcoming atmosphere.',
+        '水': 'Create a beautiful illustration of crystal clear water in a glass, with light reflections and droplets, refreshing and pure. Educational picture book style, detailed and realistic.',
+        '父亲': 'Generate a warm, detailed illustration of a caring father figure reading or helping children. Family picture book style, gentle expressions, warm colors, heartwarming scene.',
+        '母亲': 'Create a loving, detailed illustration of a nurturing mother with children, warm embrace, gentle smile. Children\'s book style, soft colors, tender moment.',
+        '兄弟': 'Generate a joyful, detailed illustration of two brothers playing together, happy expressions, active poses. Educational picture book style, vibrant colors, dynamic scene.',
+        '姐妹': 'Create a sweet, detailed illustration of two sisters sharing activities, kind expressions, cooperative play. Children\'s book illustration style, harmonious colors, loving interaction.',
+        '男孩': 'Generate a cheerful, detailed illustration of a curious young boy engaged in learning activities, bright eyes, happy expression. Educational picture book style, vivid colors.',
+        '女孩': 'Create a lovely, detailed illustration of a bright young girl in educational setting, sweet smile, engaged expression. Children\'s book style, charming details.',
+        '男人': 'Generate a distinguished, detailed illustration of a professional man in educational context, respectful demeanor. Picture book style, refined colors, clear character design.',
+        '女人': 'Create an elegant, detailed illustration of a graceful woman in educational setting, poised expression. Children\'s book style, sophisticated colors, graceful pose.',
+        '太阳': 'Generate a vibrant, detailed illustration of a bright sun with golden rays, lens flare, warm atmosphere. Educational picture book style, rich yellows and oranges, dramatic lighting.',
+        '月亮': 'Create a magical, detailed illustration of a crescent moon with twinkling stars, night sky, soft glow. Picture book style, deep blues and silvers, peaceful scene.',
+        '火': 'Generate a controlled, detailed illustration of warm flames or campfire, dancing light, orange and red tones. Educational picture book style, safe and beautiful fire depiction.',
+        '土地': 'Create a rich, detailed illustration of fertile earth with grass, soil texture, perhaps small plants. Educational picture book style, natural colors, detailed ground texture.',
+        '天空': 'Generate a expansive, detailed illustration of clear blue sky with fluffy clouds, perhaps birds. Children\'s book style, multiple shades of blue, atmospheric depth.',
+        '树': 'Create a magnificent, detailed illustration of a large tree with textured bark, full leaves, perhaps fruit or flowers. Educational picture book style, rich greens, natural beauty.',
+        '花': 'Generate a stunning, detailed illustration of blooming flowers with petals, dew drops, vibrant colors. Picture book style, botanical accuracy, artistic beauty.',
+        '汽车': 'Create a detailed, friendly illustration of a colorful car or vehicle, modern design, shiny surfaces. Educational picture book style, bright colors, appealing to children.',
+        '猫': 'Generate a charming, detailed illustration of a cute cat with fur texture, bright eyes, playful pose. Children\'s book style, realistic details, expressive character.'
     };
 
-    return prompts[word.meaning] || `Generate a simple, clear illustration of "${word.meaning}" (${word.arabic}), suitable for Arabic language learning. Style: educational, colorful, easy to understand.`;
+    return prompts[word.meaning] || `Create a beautiful, detailed picture book illustration of "${word.meaning}" (${word.arabic}). Style: high-quality children\'s educational book, vibrant colors, rich details, clear subject, artistic and engaging.`;
 }
 
 // 创建备用提示词
