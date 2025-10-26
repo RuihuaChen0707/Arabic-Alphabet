@@ -72,6 +72,28 @@ let wordStats = {
 };
 let currentWords = [...basicWords];
 
+// 图片缓存系统
+const imageCache = new Map(); // 缓存已生成的图片
+let currentImageKey = null; // 当前显示的图片缓存键
+
+// 缓存管理功能
+function clearImageCache() {
+    imageCache.clear();
+    console.log('🗑️ 图片缓存已清空');
+}
+
+function getCacheSize() {
+    return imageCache.size;
+}
+
+function getCacheInfo() {
+    return {
+        size: imageCache.size,
+        keys: Array.from(imageCache.keys()),
+        usage: '每个单词的图片只生成一次并缓存'
+    };
+}
+
 // OpenRouter API配置
 const OPENROUTER_API_KEY = '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';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -136,10 +158,7 @@ function showAlphabetPage() {
 function showFlashcardsPage() {
     document.getElementById('learningPath').style.display = 'none';
     document.getElementById('flashcardsPage').style.display = 'block';
-    const alphabetGrid = document.getElementById('alphabetGrid');
-    if (alphabetGrid) alphabetGrid.style.display = 'none';
-    const testSection = document.querySelector('.test-section');
-    if (testSection) testSection.style.display = 'none';
+    document.getElementById('alphabetLesson').style.display = 'none';
 }
 
 // 页面导航功能
@@ -1376,14 +1395,31 @@ function updateFlashcardsStats() {
     document.getElementById('progressFill').style.width = progress + '%';
 }
 
-// 生成单词配图（正确使用Gemini 2.5 Flash Image）
-async function generateWordImage(word) {
+// 生成单词配图（带缓存优化）
+async function generateWordImage(word, forceRegenerate = false) {
     const wordImage = document.getElementById('wordImage');
     const imageLoading = document.getElementById('imageLoading');
+    const regenerateBtn = document.getElementById('regenerateBtn');
+
+    // 创建缓存键
+    const cacheKey = `${word.arabic}-${word.meaning}`;
+    currentImageKey = cacheKey;
+
+    // 检查缓存（除非强制重新生成）
+    if (!forceRegenerate && imageCache.has(cacheKey)) {
+        const cachedImageUrl = imageCache.get(cacheKey);
+        console.log(`📋 使用缓存图片 (${word.arabic})`);
+        imageLoading.style.display = 'none';
+        wordImage.style.display = 'block';
+        wordImage.src = cachedImageUrl;
+        regenerateBtn.style.display = 'flex';
+        return;
+    }
 
     // 显示加载状态
     imageLoading.style.display = 'block';
-    imageLoading.textContent = 'AI正在生成图片...';
+    imageLoading.textContent = forceRegenerate ? '重新生成中...' : 'AI正在生成图片...';
+    regenerateBtn.style.display = 'none';
 
     try {
         // 步骤1：使用Gemini 2.5 Flash Image直接生成图片
@@ -1391,7 +1427,10 @@ async function generateWordImage(word) {
         const aiImageUrl = await generateImageWithGemini(word);
 
         if (aiImageUrl) {
-            // 步骤2：直接使用AI生成的图片
+            // 步骤2：缓存并显示AI生成的图片
+            imageCache.set(cacheKey, aiImageUrl);
+            console.log(`✅ 图片已缓存 (${word.arabic})`);
+
             imageLoading.textContent = '完成！';
 
             // 预加载AI生成的图片
@@ -1400,12 +1439,13 @@ async function generateWordImage(word) {
                 imageLoading.style.display = 'none';
                 wordImage.style.display = 'block';
                 wordImage.src = aiImageUrl;
+                regenerateBtn.style.display = 'flex';
                 console.log(`🎨 AI图片加载成功: ${word.arabic}`);
             };
 
             img.onerror = () => {
                 console.warn('⚠️ AI图片加载失败，使用备选方案');
-                fallbackToOtherSources(word, wordImage, imageLoading);
+                fallbackToOtherSources(word, wordImage, imageLoading, cacheKey);
             };
 
             img.src = aiImageUrl;
@@ -1413,14 +1453,14 @@ async function generateWordImage(word) {
             // 设置超时
             setTimeout(() => {
                 if (imageLoading.style.display !== 'none') {
-                    fallbackToOtherSources(word, wordImage, imageLoading);
+                    fallbackToOtherSources(word, wordImage, imageLoading, cacheKey);
                 }
             }, 5000);
 
         } else {
             // AI生成失败，使用备选方案
             console.log('🔄 AI生成失败，使用备选图片源');
-            fallbackToOtherSources(word, wordImage, imageLoading);
+            fallbackToOtherSources(word, wordImage, imageLoading, cacheKey);
         }
 
     } catch (error) {
@@ -1428,27 +1468,43 @@ async function generateWordImage(word) {
         imageLoading.textContent = '使用离线图片...';
 
         // 最终降级方案：使用离线Base64图片
-        loadOfflineImage(word, wordImage, imageLoading);
+        loadOfflineImage(word, wordImage, imageLoading, cacheKey);
+    }
+}
+
+// 重新生成图片
+function regenerateImage() {
+    if (currentWordIndex >= 0 && currentWordIndex < currentWords.length) {
+        const currentWord = currentWords[currentWordIndex];
+        console.log(`🔄 重新生成图片: ${currentWord.arabic}`);
+        generateWordImage(currentWord, true);
     }
 }
 
 // 降级到其他图片源
-function fallbackToOtherSources(word, wordImage, imageLoading) {
+function fallbackToOtherSources(word, wordImage, imageLoading, cacheKey = null) {
     imageLoading.textContent = '获取匹配图片...';
 
     // 构建传统图片源
     const imageSources = buildImageSources(word, 'simple illustration');
     console.log('📝 使用备选图片源:', imageSources);
 
-    tryLoadImages(imageSources, wordImage, imageLoading).catch(error => {
+    tryLoadImages(imageSources, wordImage, imageLoading).then(() => {
+        // 如果成功加载了备选图片，也缓存起来
+        if (cacheKey && wordImage.src) {
+            imageCache.set(cacheKey, wordImage.src);
+            console.log(`✅ 备选图片已缓存 (${word.arabic})`);
+        }
+        document.getElementById('regenerateBtn').style.display = 'flex';
+    }).catch(error => {
         console.error('❌ 所有在线图片源都失败:', error);
         imageLoading.textContent = '使用离线图片...';
-        loadOfflineImage(word, wordImage, imageLoading);
+        loadOfflineImage(word, wordImage, imageLoading, cacheKey);
     });
 }
 
 // 加载离线Base64图片
-function loadOfflineImage(word, wordImage, imageLoading) {
+function loadOfflineImage(word, wordImage, imageLoading, cacheKey = null) {
     try {
         // 使用简单的SVG图标作为离线图片
         const svgImage = generateSVGIcon(word);
@@ -1457,7 +1513,14 @@ function loadOfflineImage(word, wordImage, imageLoading) {
         wordImage.style.display = 'block';
         wordImage.src = svgImage;
 
+        // 缓存SVG图片
+        if (cacheKey) {
+            imageCache.set(cacheKey, svgImage);
+            console.log(`✅ 离线SVG图片已缓存 (${word.arabic})`);
+        }
+
         console.log(`✅ 使用离线SVG图片 (${word.arabic})`);
+        document.getElementById('regenerateBtn').style.display = 'flex';
     } catch (error) {
         console.error('❌ 离线图片也失败:', error);
 
