@@ -119,21 +119,17 @@ function getCurrentPage() {
 function showHomePage() {
     document.getElementById('learningPath').style.display = 'block';
     document.getElementById('flashcardsPage').style.display = 'none';
-    // 隐藏原有的字母学习页面元素
-    const alphabetGrid = document.getElementById('alphabetGrid');
-    if (alphabetGrid) alphabetGrid.style.display = 'none';
-    const testSection = document.querySelector('.test-section');
-    if (testSection) testSection.style.display = 'none';
+    document.getElementById('alphabetLesson').style.display = 'none';
 }
 
 // 显示字母学习页面
 function showAlphabetPage() {
     document.getElementById('learningPath').style.display = 'none';
     document.getElementById('flashcardsPage').style.display = 'none';
-    const alphabetGrid = document.getElementById('alphabetGrid');
-    if (alphabetGrid) alphabetGrid.style.display = 'grid';
-    const testSection = document.querySelector('.test-section');
-    if (testSection) testSection.style.display = 'block';
+    document.getElementById('alphabetLesson').style.display = 'block';
+
+    // 确保字母卡片被创建
+    createAlphabetCards();
 }
 
 // 显示闪卡页面
@@ -216,7 +212,10 @@ function initMobileCompatibility() {
 // 创建字母卡片
 function createAlphabetCards() {
     const grid = document.getElementById('alphabetGrid');
-    
+
+    // 清空现有内容
+    grid.innerHTML = '';
+
     arabicLetters.forEach((letterData, index) => {
         const card = document.createElement('div');
         card.className = 'letter-card';
@@ -225,7 +224,7 @@ function createAlphabetCards() {
             <div class="letter-name">${letterData.name}</div>
             <div class="letter-pronunciation">${letterData.pronunciation}</div>
         `;
-        
+
         card.addEventListener('click', () => openLearningModal(letterData.letter));
         grid.appendChild(card);
     });
