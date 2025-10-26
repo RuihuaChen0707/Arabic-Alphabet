@@ -1376,7 +1376,7 @@ function updateFlashcardsStats() {
     document.getElementById('progressFill').style.width = progress + '%';
 }
 
-// 生成单词配图（使用OpenRouter API + Gemini 2.5 Flash Image）
+// 生成单词配图（改进版）
 async function generateWordImage(word) {
     const wordImage = document.getElementById('wordImage');
     const imageLoading = document.getElementById('imageLoading');
@@ -1386,60 +1386,205 @@ async function generateWordImage(word) {
     imageLoading.textContent = 'AI正在生成图片...';
 
     try {
-        // 使用Gemini 2.5 Flash Image生成图片提示词
+        // 步骤1：生成AI图片提示词
+        imageLoading.textContent = '分析单词含义...';
         const imagePrompt = await generateImagePrompt(word);
-        console.log('Generated image prompt:', imagePrompt);
+        console.log(`✅ AI提示词生成成功 (${word.arabic}):`, imagePrompt);
 
-        // 由于Gemini 2.5 Flash Image主要用于图像理解而非生成，
-        // 我们使用优化的占位图片服务，结合AI生成的提示词
-        imageLoading.textContent = '生成图片中...';
+        // 步骤2：构建多种图片源
+        imageLoading.textContent = '获取匹配图片...';
 
-        // 使用Unsplash API获取高质量图片（基于AI生成的提示词）
-        const unsplashUrl = `https://source.unsplash.com/200x200/?${encodeURIComponent(imagePrompt)}&sig=${Math.random().toString(36).substring(7)}`;
+        // 图片源选项 - 根据单词类型选择不同的策略
+        const imageSources = buildImageSources(word, imagePrompt);
+        console.log('📝 图片源选项:', imageSources);
 
-        // 预加载图片
-        const img = new Image();
-        img.onload = () => {
-            imageLoading.style.display = 'none';
-            wordImage.style.display = 'block';
-            wordImage.src = unsplashUrl;
-        };
-
-        img.onerror = () => {
-            // 如果Unsplash失败，使用Picsum作为备选
-            const fallbackUrl = `https://picsum.photos/seed/${encodeURIComponent(imagePrompt)}/200/200.jpg`;
-            imageLoading.style.display = 'none';
-            wordImage.style.display = 'block';
-            wordImage.src = fallbackUrl;
-        };
-
-        img.src = unsplashUrl;
-
-        // 设置超时，避免长时间等待
-        setTimeout(() => {
-            if (imageLoading.style.display !== 'none') {
-                imageLoading.style.display = 'none';
-                wordImage.style.display = 'block';
-                wordImage.src = `https://picsum.photos/seed/${encodeURIComponent(word.arabic + word.meaning)}/200/200.jpg`;
-            }
-        }, 5000);
+        // 步骤3：尝试加载图片
+        await tryLoadImages(imageSources, wordImage, imageLoading);
 
     } catch (error) {
-        console.error('图片生成失败:', error);
-        imageLoading.textContent = '加载默认图片...';
+        console.error('❌ 图片生成失败:', error);
+        imageLoading.textContent = '使用备用图片...';
 
-        // 降级方案：使用基础占位图片
-        setTimeout(() => {
-            imageLoading.style.display = 'none';
-            wordImage.style.display = 'block';
-            wordImage.src = `https://picsum.photos/seed/${word.arabic}/200/200.jpg`;
-        }, 500);
+        // 最终降级方案：使用主题化的占位图片
+        const themedUrl = generateThemedPlaceholderUrl(word);
+        loadDirectImage(themedUrl, wordImage, imageLoading);
     }
 }
 
-// 生成图片提示词（使用OpenRouter API + Gemini 2.5 Flash Image）
+// 构建多种图片源
+function buildImageSources(word, aiPrompt) {
+    const sources = [];
+
+    // 源1：AI提示词 + Unsplash（最高优先级）
+    if (aiPrompt && aiPrompt !== `simple illustration of ${word.meaning}`) {
+        sources.push({
+            url: `https://source.unsplash.com/200x200/?${encodeURIComponent(aiPrompt)}&auto=format&fit=crop&w=200&h=200`,
+            name: 'Unsplash + AI提示词'
+        });
+    }
+
+    // 源2：直接关键词 + Unsplash
+    const directKeywords = getDirectKeywords(word);
+    sources.push({
+        url: `https://source.unsplash.com/200x200/?${encodeURIComponent(directKeywords)}&auto=format&fit=crop&w=200&h=200`,
+        name: 'Unsplash + 直接关键词'
+    });
+
+    // 源3：Picsum + AI提示词
+    if (aiPrompt) {
+        sources.push({
+            url: `https://picsum.photos/seed/${encodeURIComponent(aiPrompt + word.arabic)}/200/200.jpg`,
+            name: 'Picsum + AI提示词'
+        });
+    }
+
+    // 源4：Picsum + 阿拉伯语单词
+    sources.push({
+        url: `https://picsum.photos/seed/${encodeURIComponent(word.arabic + word.meaning + Date.now())}/200/200.jpg`,
+        name: 'Picsum + 单词信息'
+    });
+
+    return sources;
+}
+
+// 根据单词类型获取直接关键词
+function getDirectKeywords(word) {
+    const keywordMap = {
+        '书': 'book open pages reading',
+        '房子': 'house building home architecture',
+        '水': 'water liquid drink blue',
+        '父亲': 'father man family portrait',
+        '母亲': 'mother woman family care',
+        '兄弟': 'brothers boys family siblings',
+        '姐妹': 'sisters girls family siblings',
+        '男孩': 'boy child kid playing',
+        '女孩': 'girl child kid playing',
+        '男人': 'man adult male person',
+        '女人': 'woman adult female person',
+        '太阳': 'sun bright sky light yellow',
+        '月亮': 'moon night sky lunar',
+        '火': 'fire flame orange red hot',
+        '土地': 'earth ground soil nature',
+        '天空': 'sky blue clouds atmosphere',
+        '树': 'tree forest nature green',
+        '花': 'flower bloom garden colorful',
+        '汽车': 'car vehicle transport road',
+        '猫': 'cat pet animal feline'
+    };
+
+    return keywordMap[word.meaning] || `${word.meaning} simple illustration`;
+}
+
+// 生成主题化占位图片URL
+function generateThemedPlaceholderUrl(word) {
+    const themes = {
+        '书': 'https://picsum.photos/seed/book-learning-arabic/200/200.jpg',
+        '房子': 'https://picsum.photos/seed/home-building-arabic/200/200.jpg',
+        '水': 'https://picsum.photos/seed-water-blue-arabic/200/200.jpg',
+        '父亲': 'https://picsum.photos/seed/father-family-arabic/200/200.jpg',
+        '母亲': 'https://picsum.photos/seed/mother-family-arabic/200/200.jpg',
+        '兄弟': 'https://picsum.photos/seed/brothers-family-arabic/200/200.jpg',
+        '姐妹': 'https://picsum.photos/seed/sisters-family-arabic/200/200.jpg',
+        '男孩': 'https://picsum.photos/seed/boy-child-arabic/200/200.jpg',
+        '女孩': 'https://picsum.photos/seed/girl-child-arabic/200/200.jpg',
+        '男人': 'https://picsum.photos/seed/man-adult-arabic/200/200.jpg',
+        '女人': 'https://picsum.photos/seed/woman-adult-arabic/200/200.jpg',
+        '太阳': 'https://picsum.photos/seed/sun-sky-yellow/200/200.jpg',
+        '月亮': 'https://picsum.photos/seed/moon-night-sky/200/200.jpg',
+        '火': 'https://picsum.photos/seed-fire-orange-flame/200/200.jpg',
+        '土地': 'https://picsum.photos/seed/earth-nature-ground/200/200.jpg',
+        '天空': 'https://picsum.photos/seed/sky-blue-clouds/200/200.jpg',
+        '树': 'https://picsum.photos/seed/tree-nature-green/200/200.jpg',
+        '花': 'https://picsum.photos/seed/flower-garden-colorful/200/200.jpg',
+        '汽车': 'https://picsum.photos/seed/car-vehicle-transport/200/200.jpg',
+        '猫': 'https://picsum.photos/seed/cat-pet-animal/200/200.jpg'
+    };
+
+    return themes[word.meaning] || `https://picsum.photos/seed/${word.arabic}-${word.meaning}-${Date.now()}/200/200.jpg`;
+}
+
+// 尝试加载图片（多源降级）
+async function tryLoadImages(sources, wordImage, imageLoading) {
+    for (let i = 0; i < sources.length; i++) {
+        const source = sources[i];
+        console.log(`🔄 尝试图片源 ${i + 1}/${sources.length}: ${source.name}`);
+
+        try {
+            const success = await loadDirectImage(source.url, wordImage, imageLoading);
+            if (success) {
+                console.log(`✅ 成功使用: ${source.name}`);
+                return;
+            }
+        } catch (error) {
+            console.warn(`❌ 图片源失败: ${source.name}`, error);
+            continue;
+        }
+    }
+
+    throw new Error('所有图片源都失败了');
+}
+
+// 直接加载图片
+function loadDirectImage(url, wordImage, imageLoading) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const timeout = setTimeout(() => {
+            reject(new Error('图片加载超时'));
+        }, 3000);
+
+        img.onload = () => {
+            clearTimeout(timeout);
+            imageLoading.style.display = 'none';
+            wordImage.style.display = 'block';
+            wordImage.src = url;
+            resolve(true);
+        };
+
+        img.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error('图片加载失败'));
+        };
+
+        img.src = url;
+    });
+}
+
+// 生成图片提示词（改进版）
 async function generateImagePrompt(word) {
+    // 首先尝试使用预定义的高质量提示词
+    const predefinedPrompts = {
+        '书': 'a simple open book with clear readable pages, educational illustration',
+        '房子': 'a simple house with door and windows, clean architectural style',
+        '水': 'a glass of clear water or water droplets, clean and fresh',
+        '父亲': 'a father figure with child, family portrait illustration',
+        '母亲': 'a mother figure with child, caring family scene',
+        '兄弟': 'two brothers playing together, happy siblings illustration',
+        '姐妹': 'two sisters studying together, happy family scene',
+        '男孩': 'a young boy reading or playing, child character illustration',
+        '女孩': 'a young girl studying or playing, child character illustration',
+        '男人': 'a professional man figure, simple character portrait',
+        '女人': 'a professional woman figure, simple character portrait',
+        '太阳': 'a bright stylized sun with rays, weather symbol illustration',
+        '月亮': 'a crescent moon with stars, night sky illustration',
+        '火': 'a controlled flame or campfire, warm orange colors',
+        '土地': 'a patch of green earth or farmland, nature illustration',
+        '天空': 'blue sky with white clouds, weather illustration',
+        '树': 'a simple green tree with trunk, nature illustration',
+        '花': 'a colorful blooming flower, garden illustration',
+        '汽车': 'a simple car or vehicle, transportation illustration',
+        '猫': 'a cute sitting cat, pet animal illustration'
+    };
+
+    // 检查是否有预定义提示词
+    if (predefinedPrompts[word.meaning]) {
+        console.log(`📋 使用预定义提示词 (${word.arabic}):`, predefinedPrompts[word.meaning]);
+        return predefinedPrompts[word.meaning];
+    }
+
+    // 如果没有预定义提示词，尝试API生成
     try {
+        console.log(`🤖 开始API提示词生成 (${word.arabic} - ${word.meaning})`);
+
         const response = await fetch(OPENROUTER_API_URL, {
             method: 'POST',
             headers: {
@@ -1453,24 +1598,25 @@ async function generateImagePrompt(word) {
                 messages: [
                     {
                         role: 'user',
-                        content: `为阿拉伯语单词"${word.arabic}"（意思是"${word.meaning}"）生成一个简洁的英文图片描述，用于生成简单、清晰的插图图片。
+                        content: `I need a simple English image description for the Arabic word "${word.arabic}" which means "${word.meaning}".
 
-要求：
-1. 描述应该简单明了，适合生成AI插图
-2. 专注于单词的核心含义
-3. 使用适合教育场景的描述
-4. 只返回英文描述，不要其他内容
+Requirements:
+1. Create a simple, clear description suitable for educational illustrations
+2. Focus on the core visual meaning of the word
+3. Use 3-6 descriptive words maximum
+4. Make it suitable for image search APIs like Unsplash
+5. Return ONLY the English description, no explanations
 
-示例格式：
-- 对于"书"(كتاب)："a simple open book with clear pages"
-- 对于"房子"(بيت)："a simple house with door and windows"
-- 对于"太阳"(شمس)："a bright simple sun with rays"
+Examples:
+- For "book" (كتاب): "open book with pages"
+- For "house" (بيت): "simple house with windows"
+- For "sun" (شمس): "bright sun with rays"
 
-请为"${word.arabic}"（${word.meaning}）生成类似的描述：`
+For "${word.meaning}" (${word.arabic}), provide:`
                     }
                 ],
-                max_tokens: 150,
-                temperature: 0.7
+                max_tokens: 50,
+                temperature: 0.3  // 降低温度以获得更一致的结果
             })
         });
 
@@ -1481,15 +1627,47 @@ async function generateImagePrompt(word) {
         const data = await response.json();
 
         if (data.choices && data.choices.length > 0 && data.choices[0].message) {
-            return data.choices[0].message.content.trim();
+            const prompt = data.choices[0].message.content.trim();
+            console.log(`✅ API生成的提示词 (${word.arabic}):`, prompt);
+            return prompt;
         } else {
             console.error('Invalid API response:', data);
-            return `simple illustration of ${word.meaning}`;
+            return createFallbackPrompt(word);
         }
     } catch (error) {
-        console.error('生成图片提示词失败:', error);
-        return `simple illustration of ${word.meaning}`;
+        console.error('❌ API提示词生成失败:', error);
+        return createFallbackPrompt(word);
     }
+}
+
+// 创建备用提示词
+function createFallbackPrompt(word) {
+    const fallbackPrompts = {
+        '书': 'open book pages',
+        '房子': 'simple house building',
+        '水': 'clear water liquid',
+        '父亲': 'father man family',
+        '母亲': 'mother woman family',
+        '兄弟': 'brothers boys siblings',
+        '姐妹': 'sisters girls siblings',
+        '男孩': 'boy child kid',
+        '女孩': 'girl child kid',
+        '男人': 'man adult person',
+        '女人': 'woman adult person',
+        '太阳': 'bright sun light',
+        '月亮': 'moon night sky',
+        '火': 'fire flame orange',
+        '土地': 'earth ground soil',
+        '天空': 'blue sky clouds',
+        '树': 'tree nature green',
+        '花': 'flower bloom colorful',
+        '汽车': 'car vehicle transport',
+        '猫': 'cat pet animal'
+    };
+
+    const prompt = fallbackPrompts[word.meaning] || `${word.meaning} simple illustration`;
+    console.log(`🔄 使用备用提示词 (${word.arabic}):`, prompt);
+    return prompt;
 }
 
 // 显示完成消息
