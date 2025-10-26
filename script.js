@@ -73,18 +73,32 @@ let wordStats = {
 let currentWords = [...basicWords];
 
 // OpenRouter API配置
-const OPENROUTER_API_KEY = 'sk-or-v1-your-api-key-here'; // 需要用户替换为实际的API密钥
+const OPENROUTER_API_KEY = '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';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_SITE_URL = 'https://github.com/RuihuaChen0707/Arabic-Alphabet';
+const OPENROUTER_SITE_NAME = 'Arabic Alphabet Learning';
 
-// 初始化页面
-document.addEventListener('DOMContentLoaded', function() {
+// 初始化页面函数
+function initializeApp() {
     // 默认显示主页
     showHomePage();
     updateLearningStats();
 
     // 移动端兼容性处理
     initMobileCompatibility();
-});
+
+    // 测试API连接（可选）
+    testOpenRouterAPI().then(success => {
+        if (success) {
+            console.log('🎉 Gemini 2.5 Flash Image API已就绪');
+        } else {
+            console.log('⚠️ 使用默认图片服务');
+        }
+    });
+}
+
+// 初始化页面
+document.addEventListener('DOMContentLoaded', initializeApp);
 
 // 获取当前页面类型
 function getCurrentPage() {
@@ -1363,46 +1377,68 @@ function updateFlashcardsStats() {
     document.getElementById('progressFill').style.width = progress + '%';
 }
 
-// 生成单词配图（使用OpenRouter API）
+// 生成单词配图（使用OpenRouter API + Gemini 2.5 Flash Image）
 async function generateWordImage(word) {
     const wordImage = document.getElementById('wordImage');
     const imageLoading = document.getElementById('imageLoading');
 
-    // 检查是否有API密钥
-    if (OPENROUTER_API_KEY === 'sk-or-v1-your-api-key-here') {
-        // 使用占位图片或隐藏图片功能
-        setTimeout(() => {
-            imageLoading.style.display = 'none';
-            wordImage.style.display = 'block';
-            wordImage.src = `https://picsum.photos/seed/${word.arabic}/200/200.jpg`;
-        }, 1000);
-        return;
-    }
+    // 显示加载状态
+    imageLoading.style.display = 'block';
+    imageLoading.textContent = 'AI正在生成图片...';
 
     try {
-        // 调用OpenRouter API生成图片提示词
+        // 使用Gemini 2.5 Flash Image生成图片提示词
         const imagePrompt = await generateImagePrompt(word);
+        console.log('Generated image prompt:', imagePrompt);
 
-        // 这里应该调用实际的图片生成API
-        // 目前使用占位图片
-        setTimeout(() => {
+        // 由于Gemini 2.5 Flash Image主要用于图像理解而非生成，
+        // 我们使用优化的占位图片服务，结合AI生成的提示词
+        imageLoading.textContent = '生成图片中...';
+
+        // 使用Unsplash API获取高质量图片（基于AI生成的提示词）
+        const unsplashUrl = `https://source.unsplash.com/200x200/?${encodeURIComponent(imagePrompt)}&sig=${Math.random().toString(36).substring(7)}`;
+
+        // 预加载图片
+        const img = new Image();
+        img.onload = () => {
             imageLoading.style.display = 'none';
             wordImage.style.display = 'block';
-            wordImage.src = `https://picsum.photos/seed/${encodeURIComponent(imagePrompt)}/200/200.jpg`;
-        }, 2000);
+            wordImage.src = unsplashUrl;
+        };
+
+        img.onerror = () => {
+            // 如果Unsplash失败，使用Picsum作为备选
+            const fallbackUrl = `https://picsum.photos/seed/${encodeURIComponent(imagePrompt)}/200/200.jpg`;
+            imageLoading.style.display = 'none';
+            wordImage.style.display = 'block';
+            wordImage.src = fallbackUrl;
+        };
+
+        img.src = unsplashUrl;
+
+        // 设置超时，避免长时间等待
+        setTimeout(() => {
+            if (imageLoading.style.display !== 'none') {
+                imageLoading.style.display = 'none';
+                wordImage.style.display = 'block';
+                wordImage.src = `https://picsum.photos/seed/${encodeURIComponent(word.arabic + word.meaning)}/200/200.jpg`;
+            }
+        }, 5000);
 
     } catch (error) {
         console.error('图片生成失败:', error);
-        // 使用占位图片
+        imageLoading.textContent = '加载默认图片...';
+
+        // 降级方案：使用基础占位图片
         setTimeout(() => {
             imageLoading.style.display = 'none';
             wordImage.style.display = 'block';
             wordImage.src = `https://picsum.photos/seed/${word.arabic}/200/200.jpg`;
-        }, 1000);
+        }, 500);
     }
 }
 
-// 生成图片提示词（使用OpenRouter API）
+// 生成图片提示词（使用OpenRouter API + Gemini 2.5 Flash Image）
 async function generateImagePrompt(word) {
     try {
         const response = await fetch(OPENROUTER_API_URL, {
@@ -1410,21 +1446,47 @@ async function generateImagePrompt(word) {
             headers: {
                 'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
+                'HTTP-Referer': OPENROUTER_SITE_URL,
+                'X-Title': OPENROUTER_SITE_NAME,
             },
             body: JSON.stringify({
-                model: 'meta-llama/llama-3.2-3b-instruct:free',
+                model: 'google/gemini-2.5-flash-image',
                 messages: [
                     {
                         role: 'user',
-                        content: `为阿拉伯语单词"${word.arabic}"（意思是"${word.meaning}"）生成一个简洁的英文图片描述，用于生成简单的插图图片。只返回描述，不要其他内容。`
+                        content: `为阿拉伯语单词"${word.arabic}"（意思是"${word.meaning}"）生成一个简洁的英文图片描述，用于生成简单、清晰的插图图片。
+
+要求：
+1. 描述应该简单明了，适合生成AI插图
+2. 专注于单词的核心含义
+3. 使用适合教育场景的描述
+4. 只返回英文描述，不要其他内容
+
+示例格式：
+- 对于"书"(كتاب)："a simple open book with clear pages"
+- 对于"房子"(بيت)："a simple house with door and windows"
+- 对于"太阳"(شمس)："a bright simple sun with rays"
+
+请为"${word.arabic}"（${word.meaning}）生成类似的描述：`
                     }
                 ],
-                max_tokens: 100
+                max_tokens: 150,
+                temperature: 0.7
             })
         });
 
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+        }
+
         const data = await response.json();
-        return data.choices[0].message.content.trim();
+
+        if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+            return data.choices[0].message.content.trim();
+        } else {
+            console.error('Invalid API response:', data);
+            return `simple illustration of ${word.meaning}`;
+        }
     } catch (error) {
         console.error('生成图片提示词失败:', error);
         return `simple illustration of ${word.meaning}`;
@@ -1537,3 +1599,43 @@ function updateLearningStats() {
     const studyTime = Math.floor(wordStats.learned.size * 2); // 每个单词估算2分钟
     document.getElementById('studyTime').textContent = studyTime;
 }
+
+// ==================== API测试功能 ====================
+
+// 测试OpenRouter API连接
+async function testOpenRouterAPI() {
+    try {
+        const response = await fetch(OPENROUTER_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': OPENROUTER_SITE_URL,
+                'X-Title': OPENROUTER_SITE_NAME,
+            },
+            body: JSON.stringify({
+                model: 'google/gemini-2.5-flash-image',
+                messages: [
+                    {
+                        role: 'user',
+                        content: 'Please respond with "API connection successful" if you receive this message.'
+                    }
+                ],
+                max_tokens: 50
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('✅ OpenRouter API连接成功:', data.choices[0].message.content);
+            return true;
+        } else {
+            console.error('❌ API连接失败:', response.status, response.statusText);
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ API测试错误:', error);
+        return false;
+    }
+}
+
