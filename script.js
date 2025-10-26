@@ -30,6 +30,30 @@ const arabicLetters = [
     { letter: 'ي', name: 'يَاء', pronunciation: 'yaa', sound: 'y' }
 ];
 
+// 基础阿拉伯语单词数据
+const basicWords = [
+    { arabic: 'كتاب', romanization: 'kitāb', meaning: '书', usage: 'أقرأ كتاباً - 我在读书' },
+    { arabic: 'بيت', romanization: 'bayt', meaning: '房子', usage: 'بيتي كبير - 我的房子很大' },
+    { arabic: 'ماء', romanization: 'mā\'', meaning: '水', usage: 'أشرب ماء - 我在喝水' },
+    { arabic: 'أب', romanization: 'ab', meaning: '父亲', usage: 'أبي طبيب - 我的父亲是医生' },
+    { arabic: 'أم', romanization: 'umm', meaning: '母亲', usage: 'أمي معلمة - 我的母亲是老师' },
+    { arabic: 'أخ', romanization: 'akh', meaning: '兄弟', usage: 'أخي يلعب - 我的兄弟在玩' },
+    { arabic: 'أخت', romanization: 'ukht', meaning: '姐妹', usage: 'أختي تدرس - 我的姐妹在学习' },
+    { arabic: 'ولد', romanization: 'walad', meaning: '男孩', usage: 'الولد يلعب - 男孩在玩' },
+    { arabic: 'بنت', romanization: 'bint', meaning: '女孩', usage: 'البنت تدرس - 女孩在学习' },
+    { arabic: 'رجل', romanization: 'rajul', meaning: '男人', usage: 'الرجل يعمل - 男人在工作' },
+    { arabic: 'امرأة', romanization: 'imra\'ah', meaning: '女人', usage: 'المرأة تطبخ - 女人在做饭' },
+    { arabic: 'شمس', romanization: 'shams', meaning: '太阳', usage: 'الشمس مشرقة - 太阳很明亮' },
+    { arabic: 'قمر', romanization: 'qamar', meaning: '月亮', usage: 'القمر جميل - 月亮很美' },
+    { arabic: 'نار', romanization: 'nār', meaning: '火', usage: 'النار حارة - 火很热' },
+    { arabic: 'أرض', romanization: 'arḍ', meaning: '土地', usage: 'الأرض خصبة - 土地很肥沃' },
+    { arabic: 'سماء', romanization: 'samā\'', meaning: '天空', usage: 'السماء زرقاء - 天空是蓝色的' },
+    { arabic: 'شجرة', romanization: 'shajarah', meaning: '树', usage: 'الشجرة عالية - 树很高' },
+    { arabic: 'زهرة', romanization: 'zahrah', meaning: '花', usage: 'الزهرة جميلة - 花很美' },
+    { arabic: 'سيارة', romanization: 'sayyārah', meaning: '汽车', usage: 'السيارة سريعة - 汽车很快' },
+    { arabic: 'قطة', romanization: 'qiṭṭah', meaning: '猫', usage: 'القطة نائمة - 猫在睡觉' }
+];
+
 // 全局变量
 let currentQuestion = 0;
 let score = 0;
@@ -37,13 +61,95 @@ let currentLetter = null;
 let questionType = 1; // 1: 显示字母选发音, 2: 显示发音选字母
 let usedLetters = [];
 
+// 闪卡功能变量
+let currentWordIndex = 0;
+let isFlipped = false;
+let studyMode = 'study'; // 'study' 或 'review'
+let wordStats = {
+    learned: new Set(),
+    mastered: new Set(),
+    difficult: new Set()
+};
+let currentWords = [...basicWords];
+
+// OpenRouter API配置
+const OPENROUTER_API_KEY = 'sk-or-v1-your-api-key-here'; // 需要用户替换为实际的API密钥
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
 // 初始化页面
 document.addEventListener('DOMContentLoaded', function() {
-    createAlphabetCards();
-    
+    // 默认显示主页
+    showHomePage();
+    updateLearningStats();
+
     // 移动端兼容性处理
     initMobileCompatibility();
 });
+
+// 获取当前页面类型
+function getCurrentPage() {
+    const learningPath = document.getElementById('learningPath');
+    const alphabetGrid = document.getElementById('alphabetGrid');
+    const flashcardsPage = document.getElementById('flashcardsPage');
+
+    if (learningPath && learningPath.style.display !== 'none') {
+        return 'home';
+    } else if (flashcardsPage && flashcardsPage.style.display !== 'block') {
+        return 'flashcards';
+    } else {
+        return 'alphabet';
+    }
+}
+
+// 显示主页
+function showHomePage() {
+    document.getElementById('learningPath').style.display = 'block';
+    document.getElementById('flashcardsPage').style.display = 'none';
+    // 隐藏原有的字母学习页面元素
+    const alphabetGrid = document.getElementById('alphabetGrid');
+    if (alphabetGrid) alphabetGrid.style.display = 'none';
+    const testSection = document.querySelector('.test-section');
+    if (testSection) testSection.style.display = 'none';
+}
+
+// 显示字母学习页面
+function showAlphabetPage() {
+    document.getElementById('learningPath').style.display = 'none';
+    document.getElementById('flashcardsPage').style.display = 'none';
+    const alphabetGrid = document.getElementById('alphabetGrid');
+    if (alphabetGrid) alphabetGrid.style.display = 'grid';
+    const testSection = document.querySelector('.test-section');
+    if (testSection) testSection.style.display = 'block';
+}
+
+// 显示闪卡页面
+function showFlashcardsPage() {
+    document.getElementById('learningPath').style.display = 'none';
+    document.getElementById('flashcardsPage').style.display = 'block';
+    const alphabetGrid = document.getElementById('alphabetGrid');
+    if (alphabetGrid) alphabetGrid.style.display = 'none';
+    const testSection = document.querySelector('.test-section');
+    if (testSection) testSection.style.display = 'none';
+}
+
+// 页面导航功能
+function goToLesson(lessonType) {
+    if (lessonType === 'alphabet') {
+        showAlphabetPage();
+        createAlphabetCards();
+    } else if (lessonType === 'flashcards') {
+        showFlashcardsPage();
+        initFlashcards();
+    } else {
+        alert('该课程正在开发中，敬请期待！');
+    }
+}
+
+// 返回主页
+function backToHome() {
+    showHomePage();
+    updateLearningStats();
+}
 
 // 移动端兼容性初始化
 function initMobileCompatibility() {
@@ -1044,3 +1150,390 @@ if (isSafari || isMobile) {
 
 // 语音系统清理和兼容性处理
 // 新的SpeechManager类已处理所有兼容性问题，这里保留清理函数
+
+// ==================== 闪卡功能 ====================
+
+// 初始化闪卡系统
+function initFlashcards() {
+    currentWordIndex = 0;
+    isFlipped = false;
+    currentWords = [...basicWords];
+
+    // 更新单词总数显示
+    document.getElementById('totalWordsCount').textContent = currentWords.length;
+
+    // 加载第一个单词
+    loadCurrentWord();
+
+    // 更新统计显示
+    updateFlashcardsStats();
+
+    // 初始化语音
+    if (isSafari || isMobile) {
+        setTimeout(activateSpeechSynthesis, 1000);
+    }
+}
+
+// 加载当前单词
+function loadCurrentWord() {
+    if (currentWords.length === 0) return;
+
+    const word = currentWords[currentWordIndex];
+
+    // 更新阿拉伯语单词显示
+    document.getElementById('wordArabic').textContent = word.arabic;
+
+    // 更新卡片背面内容
+    document.getElementById('wordRomanization').textContent = word.romanization;
+    document.getElementById('wordMeaning').textContent = word.meaning;
+    document.getElementById('wordUsage').textContent = word.usage;
+
+    // 更新当前单词序号
+    document.getElementById('currentWord').textContent = currentWordIndex + 1;
+
+    // 重置卡片状态
+    const flashcard = document.getElementById('flashcard');
+    flashcard.classList.remove('flipped');
+    isFlipped = false;
+
+    // 隐藏图片，开始生成
+    const wordImage = document.getElementById('wordImage');
+    const imageLoading = document.getElementById('imageLoading');
+    wordImage.style.display = 'none';
+    imageLoading.style.display = 'block';
+    imageLoading.textContent = '生成图片中...';
+
+    // 生成图片
+    generateWordImage(word);
+}
+
+// 翻转卡片
+function flipCard() {
+    const flashcard = document.getElementById('flashcard');
+    const cardFront = document.getElementById('cardFront');
+    const cardBack = document.getElementById('cardBack');
+
+    if (!isFlipped) {
+        flashcard.classList.add('flipped');
+        setTimeout(() => {
+            cardFront.style.display = 'none';
+            cardBack.style.display = 'flex';
+        }, 300);
+        isFlipped = true;
+
+        // 标记为已学习
+        const word = currentWords[currentWordIndex];
+        wordStats.learned.add(word.arabic);
+        updateFlashcardsStats();
+    } else {
+        flashcard.classList.remove('flipped');
+        setTimeout(() => {
+            cardFront.style.display = 'flex';
+            cardBack.style.display = 'none';
+        }, 300);
+        isFlipped = false;
+    }
+}
+
+// 上一个单词
+function previousWord() {
+    if (currentWordIndex > 0) {
+        currentWordIndex--;
+        loadCurrentWord();
+    }
+}
+
+// 下一个单词
+function nextWord() {
+    if (currentWordIndex < currentWords.length - 1) {
+        currentWordIndex++;
+        loadCurrentWord();
+    } else {
+        // 学习完成
+        showCompletionMessage();
+    }
+}
+
+// 播放单词发音
+function playWordSound() {
+    const word = currentWords[currentWordIndex];
+
+    if ('speechSynthesis' in window) {
+        // 取消之前的语音
+        speechSynthesis.cancel();
+
+        // 创建新的语音实例
+        const utterance = new SpeechSynthesisUtterance(word.arabic);
+        utterance.lang = 'ar-SA'; // 阿拉伯语 - 沙特阿拉伯
+        utterance.rate = 0.8; // 稍慢的语速
+        utterance.pitch = 1;
+        utterance.volume = 1;
+
+        // 播放语音
+        speechSynthesis.speak(utterance);
+
+        // 如果语音播放失败，显示视觉反馈
+        setTimeout(() => {
+            if (!speechSynthesis.speaking) {
+                showVisualFeedback(word.arabic);
+            }
+        }, 500);
+    } else {
+        // 降级方案：显示视觉反馈
+        showVisualFeedback(word.arabic);
+    }
+}
+
+// 标记为困难
+function markDifficult() {
+    const word = currentWords[currentWordIndex];
+    wordStats.difficult.add(word.arabic);
+
+    // 显示反馈
+    showFeedbackMessage('已标记为困难单词', '#ff9800');
+    updateFlashcardsStats();
+}
+
+// 标记为已掌握
+function markKnown() {
+    const word = currentWords[currentWordIndex];
+    wordStats.mastered.add(word.arabic);
+
+    // 显示反馈
+    showFeedbackMessage('恭喜！已掌握此单词', '#4CAF50');
+    updateFlashcardsStats();
+
+    // 自动进入下一个单词
+    setTimeout(() => {
+        if (currentWordIndex < currentWords.length - 1) {
+            nextWord();
+        } else {
+            showCompletionMessage();
+        }
+    }, 1500);
+}
+
+// 设置学习模式
+function setMode(mode) {
+    studyMode = mode;
+
+    // 更新按钮状态
+    document.getElementById('studyMode').classList.toggle('active', mode === 'study');
+    document.getElementById('reviewMode').classList.toggle('active', mode === 'review');
+
+    // 根据模式过滤单词
+    if (mode === 'review') {
+        // 复习模式：只显示已学习但未掌握的单词
+        currentWords = basicWords.filter(word =>
+            wordStats.learned.has(word.arabic) && !wordStats.mastered.has(word.arabic)
+        );
+
+        if (currentWords.length === 0) {
+            showFeedbackMessage('暂无需要复习的单词', '#2196F3');
+            setTimeout(() => {
+                setMode('study');
+                return;
+            }, 2000);
+        }
+    } else {
+        // 学习模式：显示所有单词
+        currentWords = [...basicWords];
+    }
+
+    // 重新开始
+    currentWordIndex = 0;
+    document.getElementById('totalWordsCount').textContent = currentWords.length;
+    loadCurrentWord();
+    updateFlashcardsStats();
+}
+
+// 更新闪卡统计
+function updateFlashcardsStats() {
+    const learnedCount = wordStats.learned.size;
+    const masteredCount = wordStats.mastered.size;
+    const reviewCount = wordStats.difficult.size;
+
+    document.getElementById('learnedCount').textContent = learnedCount;
+    document.getElementById('masteredCount').textContent = masteredCount;
+    document.getElementById('reviewCount').textContent = reviewCount;
+
+    // 更新进度条
+    const totalWords = basicWords.length;
+    const progress = (masteredCount / totalWords) * 100;
+    document.getElementById('progressFill').style.width = progress + '%';
+}
+
+// 生成单词配图（使用OpenRouter API）
+async function generateWordImage(word) {
+    const wordImage = document.getElementById('wordImage');
+    const imageLoading = document.getElementById('imageLoading');
+
+    // 检查是否有API密钥
+    if (OPENROUTER_API_KEY === 'sk-or-v1-your-api-key-here') {
+        // 使用占位图片或隐藏图片功能
+        setTimeout(() => {
+            imageLoading.style.display = 'none';
+            wordImage.style.display = 'block';
+            wordImage.src = `https://picsum.photos/seed/${word.arabic}/200/200.jpg`;
+        }, 1000);
+        return;
+    }
+
+    try {
+        // 调用OpenRouter API生成图片提示词
+        const imagePrompt = await generateImagePrompt(word);
+
+        // 这里应该调用实际的图片生成API
+        // 目前使用占位图片
+        setTimeout(() => {
+            imageLoading.style.display = 'none';
+            wordImage.style.display = 'block';
+            wordImage.src = `https://picsum.photos/seed/${encodeURIComponent(imagePrompt)}/200/200.jpg`;
+        }, 2000);
+
+    } catch (error) {
+        console.error('图片生成失败:', error);
+        // 使用占位图片
+        setTimeout(() => {
+            imageLoading.style.display = 'none';
+            wordImage.style.display = 'block';
+            wordImage.src = `https://picsum.photos/seed/${word.arabic}/200/200.jpg`;
+        }, 1000);
+    }
+}
+
+// 生成图片提示词（使用OpenRouter API）
+async function generateImagePrompt(word) {
+    try {
+        const response = await fetch(OPENROUTER_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'meta-llama/llama-3.2-3b-instruct:free',
+                messages: [
+                    {
+                        role: 'user',
+                        content: `为阿拉伯语单词"${word.arabic}"（意思是"${word.meaning}"）生成一个简洁的英文图片描述，用于生成简单的插图图片。只返回描述，不要其他内容。`
+                    }
+                ],
+                max_tokens: 100
+            })
+        });
+
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('生成图片提示词失败:', error);
+        return `simple illustration of ${word.meaning}`;
+    }
+}
+
+// 显示完成消息
+function showCompletionMessage() {
+    const masteredCount = wordStats.mastered.size;
+    const totalCount = basicWords.length;
+
+    const message = `
+        🎉 恭喜完成学习！
+        已掌握: ${masteredCount}/${totalCount} 个单词
+
+        ${masteredCount === totalCount ? '🏆 太棒了！你已经掌握了所有单词！' : '继续努力，你可以做得更好！'}
+    `;
+
+    showFeedbackMessage(message, '#4CAF50');
+}
+
+// 显示反馈消息
+function showFeedbackMessage(message, color = '#2196F3') {
+    // 移除可能存在的旧消息
+    const existingMessage = document.querySelector('.feedback-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+
+    // 创建新消息
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'feedback-message';
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: ${color};
+        color: white;
+        padding: 20px 30px;
+        border-radius: 15px;
+        z-index: 10000;
+        font-size: 16px;
+        font-weight: bold;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        text-align: center;
+        max-width: 300px;
+        animation: messageFadeIn 0.3s ease-out;
+        white-space: pre-line;
+    `;
+
+    // 添加动画样式
+    if (!document.querySelector('#feedback-message-style')) {
+        const style = document.createElement('style');
+        style.id = 'feedback-message-style';
+        style.textContent = `
+            @keyframes messageFadeIn {
+                0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+                100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    messageDiv.textContent = message;
+    document.body.appendChild(messageDiv);
+
+    // 自动移除
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.style.animation = 'messageFadeOut 0.3s ease-in';
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.remove();
+                }
+            }, 300);
+        }
+    }, 3000);
+}
+
+// 添加消息消失动画
+if (!document.querySelector('#feedback-message-style')) {
+    const style = document.createElement('style');
+    style.id = 'feedback-message-style';
+    style.textContent = `
+        @keyframes messageFadeIn {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        @keyframes messageFadeOut {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ==================== 学习统计功能 ====================
+
+// 更新学习统计
+function updateLearningStats() {
+    // 计算完成的课程数
+    const completedLessons = wordStats.learned.size > 0 ? 2 : 1; // 第一课始终完成
+    document.getElementById('completedLessons').textContent = completedLessons;
+
+    // 更新学习的单词数
+    document.getElementById('totalWords').textContent = wordStats.learned.size;
+
+    // 计算学习时间（简单估算）
+    const studyTime = Math.floor(wordStats.learned.size * 2); // 每个单词估算2分钟
+    document.getElementById('studyTime').textContent = studyTime;
+}

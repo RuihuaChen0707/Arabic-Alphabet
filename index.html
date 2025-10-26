@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="zh" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="阿拉伯语字母">
+    <meta name="apple-mobile-web-app-title" content="阿拉伯语学习">
     <meta name="format-detection" content="telephone=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#667eea">
     <meta name="apple-touch-fullscreen" content="yes">
-    <title>阿拉伯语字母认读卡片</title>
+    <title>阿拉伯语学习路径</title>
     <link rel="stylesheet" href="style.css">
     <style>
         /* Safari兼容性样式 */
@@ -23,7 +23,7 @@
             -ms-user-select: none;
             user-select: none;
         }
-        
+
         /* Safari语音按钮样式修复 */
         .play-btn {
             -webkit-appearance: none;
@@ -36,20 +36,121 @@
 </head>
 <body>
     <div class="container">
-        <h1>阿拉伯语字母认读卡片</h1>
-        
-        <!-- 字母卡片区域 -->
-        <div class="alphabet-grid" id="alphabetGrid">
-            <!-- 字母卡片将通过JavaScript动态生成 -->
-            <div class="letter-card" data-letter="ا" data-pronunciation="alif" onclick="openLearningModal('ا')">
-                <div class="letter">ا</div>
-                <div class="pronunciation">alif</div>
+        <header class="header">
+            <h1>阿拉伯语学习路径</h1>
+            <p class="subtitle">系统化学习阿拉伯语</p>
+        </header>
+
+        <!-- 学习路径区域 -->
+        <div class="learning-path" id="learningPath">
+            <div class="path-intro">
+                <h2>学习旅程</h2>
+                <p>按照以下路径循序渐进地学习阿拉伯语</p>
+            </div>
+
+            <div class="course-grid">
+                <!-- 第一课：字母表 -->
+                <div class="course-card available" onclick="goToLesson('alphabet')">
+                    <div class="course-icon">📚</div>
+                    <div class="course-info">
+                        <h3>第一课 - 字母表</h3>
+                        <p>学习28个阿拉伯语字母的发音和书写</p>
+                        <div class="course-status">
+                            <span class="status-badge available">可学习</span>
+                            <span class="progress">基础入门</span>
+                        </div>
+                    </div>
+                    <div class="course-arrow">→</div>
+                </div>
+
+                <!-- 第二课：认读单词闪卡 -->
+                <div class="course-card available" onclick="goToLesson('flashcards')">
+                    <div class="course-icon">🎴</div>
+                    <div class="course-info">
+                        <h3>第二课 - 认读单词闪卡</h3>
+                        <p>通过闪卡学习基础阿拉伯语单词</p>
+                        <div class="course-status">
+                            <span class="status-badge available">可学习</span>
+                            <span class="progress">词汇积累</span>
+                        </div>
+                    </div>
+                    <div class="course-arrow">→</div>
+                </div>
+
+                <!-- 第三课：基础语法（未来开发） -->
+                <div class="course-card locked">
+                    <div class="course-icon">📝</div>
+                    <div class="course-info">
+                        <h3>第三课 - 基础语法</h3>
+                        <p>学习阿拉伯语的基础语法规则</p>
+                        <div class="course-status">
+                            <span class="status-badge locked">即将推出</span>
+                            <span class="progress">语法入门</span>
+                        </div>
+                    </div>
+                    <div class="course-arrow">→</div>
+                </div>
+
+                <!-- 第四课：日常对话（未来开发） -->
+                <div class="course-card locked">
+                    <div class="course-icon">💬</div>
+                    <div class="course-info">
+                        <h3>第四课 - 日常对话</h3>
+                        <p>掌握日常生活中的基础对话</p>
+                        <div class="course-status">
+                            <span class="status-badge locked">即将推出</span>
+                            <span class="progress">实用对话</span>
+                        </div>
+                    </div>
+                    <div class="course-arrow">→</div>
+                </div>
+
+                <!-- 第五课：阅读理解（未来开发） -->
+                <div class="course-card locked">
+                    <div class="course-icon">📖</div>
+                    <div class="course-info">
+                        <h3>第五课 - 阅读理解</h3>
+                        <p>阅读简单的阿拉伯语文章和故事</p>
+                        <div class="course-status">
+                            <span class="status-badge locked">即将推出</span>
+                            <span class="progress">阅读能力</span>
+                        </div>
+                    </div>
+                    <div class="course-arrow">→</div>
+                </div>
+
+                <!-- 第六课：进阶学习（未来开发） -->
+                <div class="course-card locked">
+                    <div class="course-icon">🎓</div>
+                    <div class="course-info">
+                        <h3>第六课 - 进阶学习</h3>
+                        <p>深入学习阿拉伯语的高级知识</p>
+                        <div class="course-status">
+                            <span class="status-badge locked">即将推出</span>
+                            <span class="progress">高级应用</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <!-- 测试模式入口 -->
-        <div class="test-section">
-            <button class="test-button" onclick="enterTestMode()">进入测试模式</button>
+
+        <!-- 学习统计区域 -->
+        <div class="learning-stats">
+            <h3>学习统计</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="completedLessons">1</div>
+                    <div class="stat-label">已完成课程</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="totalWords">0</div>
+                    <div class="stat-label">学习单词</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="studyTime">0</div>
+                    <div class="stat-label">学习时间(分钟)</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -194,6 +295,68 @@
                     <button onclick="clearCanvas()" class="clear-btn">清屏</button>
                     <button onclick="toggleEraser()" class="eraser-btn">橡皮擦</button>
                     <button onclick="togglePencil()" class="pencil-btn active">铅笔</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 单词闪卡页面（第二课） -->
+    <div class="flashcards-page" id="flashcardsPage" style="display: none;">
+        <div class="flashcards-container">
+            <header class="flashcards-header">
+                <button class="back-btn" onclick="backToHome()">← 返回主页</button>
+                <h2>第二课 - 认读单词闪卡</h2>
+                <div class="flashcards-progress">
+                    <span id="currentWord">1</span> / <span id="totalWordsCount">20</span>
+                </div>
+            </header>
+
+            <!-- 单词卡片区域 -->
+            <div class="flashcard-area">
+                <div class="flashcard" id="flashcard">
+                    <div class="card-front" id="cardFront">
+                        <div class="word-image-container">
+                            <img id="wordImage" src="" alt="单词图片" style="display: none;">
+                            <div class="image-loading" id="imageLoading">生成图片中...</div>
+                        </div>
+                        <div class="word-arabic" id="wordArabic"></div>
+                        <button class="sound-btn" onclick="playWordSound()">🔊</button>
+                    </div>
+                    <div class="card-back" id="cardBack" style="display: none;">
+                        <div class="word-romanization" id="wordRomanization"></div>
+                        <div class="word-meaning" id="wordMeaning"></div>
+                        <div class="word-usage" id="wordUsage"></div>
+                    </div>
+                </div>
+
+                <div class="card-controls">
+                    <button class="control-btn" onclick="previousWord()">← 上一个</button>
+                    <button class="control-btn primary" onclick="flipCard()">翻转卡片</button>
+                    <button class="control-btn" onclick="nextWord()">下一个 →</button>
+                </div>
+            </div>
+
+            <!-- 学习控制区域 -->
+            <div class="flashcards-controls">
+                <div class="difficulty-buttons">
+                    <button class="difficulty-btn" onclick="markDifficult()">困难</button>
+                    <button class="difficulty-btn" onclick="markKnown()">已掌握</button>
+                </div>
+                <div class="study-modes">
+                    <button class="mode-btn active" id="studyMode" onclick="setMode('study')">学习模式</button>
+                    <button class="mode-btn" id="reviewMode" onclick="setMode('review')">复习模式</button>
+                </div>
+            </div>
+
+            <!-- 进度统计 -->
+            <div class="flashcards-stats">
+                <div class="stat-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="stats-info">
+                    <span>已学习: <span id="learnedCount">0</span></span>
+                    <span>已掌握: <span id="masteredCount">0</span></span>
+                    <span>需复习: <span id="reviewCount">0</span></span>
                 </div>
             </div>
         </div>
