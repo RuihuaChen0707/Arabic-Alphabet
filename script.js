@@ -157,14 +157,8 @@ function initializeApp() {
     // 移动端兼容性处理
     initMobileCompatibility();
 
-    // 测试API连接（可选）
-    testOpenRouterAPI().then(success => {
-        if (success) {
-            console.log('🎉 Gemini 2.5 Flash Image API已就绪');
-        } else {
-            console.log('⚠️ 使用默认图片服务');
-        }
-    });
+    // 不再测试API连接，避免消耗token
+    console.log('🎉 应用初始化完成，API将在需要时调用');
 }
 
 // 初始化页面
@@ -1281,7 +1275,7 @@ function loadCurrentWord() {
     const imageLoading = document.getElementById('imageLoading');
     const cacheKey = `${word.arabic}-${word.meaning}`;
 
-    // 如果有缓存，直接显示，无需重新生成
+    // 如果有缓存，直接显示
     if (imageCache.has(cacheKey)) {
         console.log(`📋 使用已有缓存图片 (${word.arabic})`);
         imageLoading.style.display = 'none';
@@ -1289,13 +1283,33 @@ function loadCurrentWord() {
         wordImage.src = imageCache.get(cacheKey);
         document.getElementById('regenerateBtn').style.display = 'flex';
     } else {
-        // 没有缓存才需要生成
-        console.log(`🎨 首次生成图片 (${word.arabic})`);
+        // 没有缓存时，显示生成按钮，让用户主动选择
+        console.log(`🎨 等待用户生成图片 (${word.arabic})`);
         wordImage.style.display = 'none';
         imageLoading.style.display = 'block';
-        imageLoading.textContent = 'AI正在生成图片...';
-        generateWordImage(word);
+        imageLoading.innerHTML = `
+            <div style="text-align: center;">
+                <div style="margin-bottom: 10px;">点击下方按钮生成图片</div>
+                <button onclick="generateCurrentWordImage()" style="
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    font-size: 1rem;
+                ">🎨 生成图片</button>
+            </div>
+        `;
+        document.getElementById('regenerateBtn').style.display = 'none';
     }
+}
+
+// 生成当前单词图片（用户主动点击）
+function generateCurrentWordImage() {
+    if (currentWords.length === 0) return;
+    const word = currentWords[currentWordIndex];
+    generateWordImage(word);
 }
 
 // 翻转卡片
@@ -2197,39 +2211,6 @@ function updateLearningStats() {
 // ==================== API测试功能 ====================
 
 // 测试OpenRouter API连接
-async function testOpenRouterAPI() {
-    try {
-        const response = await fetch(OPENROUTER_API_URL, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': OPENROUTER_SITE_URL,
-                'X-Title': OPENROUTER_SITE_NAME,
-            },
-            body: JSON.stringify({
-                model: 'google/gemini-2.5-flash-image',
-                messages: [
-                    {
-                        role: 'user',
-                        content: 'Please respond with "API connection successful" if you receive this message.'
-                    }
-                ],
-                max_tokens: 50
-            })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            console.log('✅ OpenRouter API连接成功:', data.choices[0].message.content);
-            return true;
-        } else {
-            console.error('❌ API连接失败:', response.status, response.statusText);
-            return false;
-        }
-    } catch (error) {
-        console.error('❌ API测试错误:', error);
-        return false;
-    }
-}
+// API测试函数已禁用，避免在初始化时消耗token
+// async function testOpenRouterAPI() { ... }
 
