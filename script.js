@@ -140,7 +140,7 @@ function getCacheInfo() {
 }
 
 // OpenRouter API配置
-const OPENROUTER_API_KEY = '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';
+const OPENROUTER_API_KEY = 'YOUR_API_KEY_HERE'; // 请在此处设置您的API密钥
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_SITE_URL = 'https://github.com/RuihuaChen0707/Arabic-Alphabet';
 const OPENROUTER_SITE_NAME = 'Arabic Alphabet Learning';
